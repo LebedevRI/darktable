@@ -979,7 +979,7 @@ static gboolean tree_key_press(GtkWidget *widget, GdkEventKey *event,
     {
       // If it succeeded delete any conflicting accelerators
       // First locate the accel list entry
-      strcpy(query.path, darktable.control->accel_remap_str);
+      strncpy(query.path, darktable.control->accel_remap_str, sizeof(query.path)-1);
       remapped = g_slist_find_custom(darktable.control->accelerator_list,
                                      (gpointer)&query, _accelcmp);
 
