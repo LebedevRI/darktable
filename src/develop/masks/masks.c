@@ -38,27 +38,27 @@ static void _set_hinter_message(dt_masks_form_gui_t *gui, dt_masks_type_t formty
 
   if(formtype&DT_MASKS_PATH)
   {
-    if (gui->creation) strcat(msg,_("ctrl+click to add a sharp node"));
-    else if (gui->point_selected >= 0) strcat(msg,_("ctrl+click to switch between smooth/sharp node"));
-    else if (gui->feather_selected >= 0) strcat(msg,_("right-click to reset feather value"));
-    else if (gui->seg_selected >= 0) strcat(msg,_("ctrl+click to add a node"));
-    else if (gui->form_selected) strcat(msg,_("ctrl+scroll to set shape opacity"));
+    if (gui->creation) strncat(msg,_("ctrl+click to add a sharp node"),sizeof(msg)-strlen(msg)-1);
+    else if (gui->point_selected >= 0) strncat(msg,_("ctrl+click to switch between smooth/sharp node"),sizeof(msg)-strlen(msg)-1);
+    else if (gui->feather_selected >= 0) strncat(msg,_("right-click to reset feather value"),sizeof(msg)-strlen(msg)-1);
+    else if (gui->seg_selected >= 0) strncat(msg,_("ctrl+click to add a node"),sizeof(msg)-strlen(msg)-1);
+    else if (gui->form_selected) strncat(msg,_("ctrl+scroll to set shape opacity"),sizeof(msg)-strlen(msg)-1);
   }
   else if (formtype&DT_MASKS_GRADIENT)
   {
-    if (gui->form_selected) strcat(msg,_("ctrl+scroll to set shape opacity"));
-    else if (gui->pivot_selected) strcat(msg,_("move to rotate shape"));
+    if (gui->form_selected) strncat(msg,_("ctrl+scroll to set shape opacity"),sizeof(msg)-strlen(msg)-1);
+    else if (gui->pivot_selected) strncat(msg,_("move to rotate shape"),sizeof(msg)-strlen(msg)-1);
   }
   else if (formtype&DT_MASKS_ELLIPSE)
   {
-    if (gui->point_selected >= 0) strcat(msg,_("ctrl+click to rotate"));
-    else if (gui->form_selected) strcat(msg,_("ctrl+scroll to set shape opacity"));
+    if (gui->point_selected >= 0) strncat(msg,_("ctrl+click to rotate"),sizeof(msg)-strlen(msg)-1);
+    else if (gui->form_selected) strncat(msg,_("ctrl+scroll to set shape opacity"),sizeof(msg)-strlen(msg)-1);
   }
   else if (formtype&DT_MASKS_BRUSH)
   {
-    if (gui->creation) strcat(msg,_("scroll to set brush size, shift+scroll to set hardness, ctrl+scroll to set opacity"));
-    else if (gui->border_selected) strcat(msg,_("scroll to set brush size"));
-    else if (gui->form_selected) strcat(msg,_("scroll to set hardness, ctrl+scroll to set shape opacity"));
+    if (gui->creation) strncat(msg,_("scroll to set brush size, shift+scroll to set hardness, ctrl+scroll to set opacity"),sizeof(msg)-strlen(msg)-1);
+    else if (gui->border_selected) strncat(msg,_("scroll to set brush size"),sizeof(msg)-strlen(msg)-1);
+    else if (gui->form_selected) strncat(msg,_("scroll to set hardness, ctrl+scroll to set shape opacity"),sizeof(msg)-strlen(msg)-1);
   }
 
   dt_control_hinter_message(darktable.control,msg);
@@ -1240,7 +1240,7 @@ void dt_masks_iop_combo_populate(struct dt_iop_module_t **m)
       if (nb==0)
       {
         char str2[256] = "<";
-        strcat(str2,_("add existing shape"));
+        strncat(str2,_("add existing shape"),sizeof(str2)-strlen(str2)-1);
         dt_bauhaus_combobox_add(combo,str2);
         cids[pos++] = 0;  //nothing to do
       }
@@ -1267,12 +1267,12 @@ void dt_masks_iop_combo_populate(struct dt_iop_module_t **m)
         if (nb==0)
         {
           char str2[256] = "<";
-          strcat(str2,_("use same shapes as"));
+          strncat(str2,_("use same shapes as"),sizeof(str2)-strlen(str2)-1);
           dt_bauhaus_combobox_add(combo,str2);
           cids[pos++] = 0;  //nothing to do
         }
         char str[256] = "";
-        strcat(str,m->name());
+        strncat(str,m->name(),sizeof(str)-strlen(str)-1);
         strcat(str," ");
         strcat(str,m->multi_name);
         strcat(str,"   ");
