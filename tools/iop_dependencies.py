@@ -40,6 +40,7 @@ def add_edges(gr):
   
   # these work on mosaic data:
   gr.add_edge(('demosaic', 'rawspeed'))
+  gr.add_edge(('demosaic', 'darkframe'))
   # handle highlights correctly:
   # we want highlights as early as possible, to avoid
   # pink highlights in plugins (happens only before highlight clipping)
@@ -61,10 +62,14 @@ def add_edges(gr):
   gr.add_edge(('cacorrect', 'highlights'))
   
   # and of course rawspeed needs to give us the pixels first:
-  gr.add_edge(('temperature', 'rawspeed'))
+  #gr.add_edge(('temperature', 'rawspeed')) #orig
+  gr.add_edge(('temperature', 'darkframe'))
 
   # inversion should be really early in the pipe
-  gr.add_edge(('temperature', 'invert'))
+  #gr.add_edge(('temperature', 'invert')) #orig
+  gr.add_edge(('invert', 'darkframe'))
+
+  gr.add_edge(('darkframe', 'rawspeed'))
 
   # these need to be in camera color space (linear input rgb):
   gr.add_edge(('colorin', 'exposure'))
@@ -346,6 +351,7 @@ gr.add_nodes([
 'colorzones',
 'colorcontrast',
 'demosaic',
+'darkframe',
 'denoiseprofile',
 'dither',
 'equalizer', # deprecated
