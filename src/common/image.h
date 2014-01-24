@@ -120,6 +120,7 @@ typedef struct dt_image_t
   double longitude;
   double latitude;
 
+  bool raw_black_white_prescaled;
   /* needed in exposure iop for Deflicker */
   uint16_t raw_black_level;
   uint16_t raw_white_point;

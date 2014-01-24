@@ -430,7 +430,7 @@ dt_imageio_open_raw(
   dt_gettime_t(img->exif_datetime_taken, raw->other.timestamp);
 #endif
 
-  void *buf = dt_mipmap_cache_alloc(img, DT_MIPMAP_FULL, a);
+  void *buf = dt_mipmap_cache_alloc(img, img->raw_black_white_prescaled ? DT_MIPMAP_FULL : DT_MIPMAP_FULL_UNSCALED, a);
   if(!buf)
   {
     libraw_recycle(raw);
@@ -438,7 +438,7 @@ dt_imageio_open_raw(
     free(image);
     return DT_IMAGEIO_CACHE_FULL;
   }
-  if(img->filters)
+  if(img->filters && img->raw_black_white_prescaled)
   {
 #ifdef _OPENMP
     #pragma omp parallel for schedule(static) default(none) shared(img, image, raw, buf)

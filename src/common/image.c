@@ -36,6 +36,7 @@
 #include <string.h>
 #include <strings.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <assert.h>
 #ifndef __WIN32__
   #include <glob.h>
@@ -878,6 +879,7 @@ void dt_image_init(dt_image_t *img)
   img->exif_focus_distance = 0;
   img->latitude = NAN;
   img->longitude = NAN;
+  img->raw_black_white_prescaled = true;
   img->raw_black_level = 0;
   img->raw_white_point = 16384; // 2^14
   img->d65_color_matrix[0] = NAN;

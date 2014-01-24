@@ -521,12 +521,12 @@ dt_mipmap_cache_deallocate(void *data, const uint32_t key, void *payload)
 
 
 // callback for the imageio core to allocate memory.
-// only needed for _F and _FULL buffers, as they change size
+// only needed for _F, _FULL and _FULL_UNSCALED buffers, as they change size
 // with the input image. will allocate img->width*img->height*img->bpp bytes.
 void*
 dt_mipmap_cache_alloc(dt_image_t *img, dt_mipmap_size_t size, dt_mipmap_cache_allocator_t a)
 {
-  assert(size == DT_MIPMAP_FULL);
+  assert((size == DT_MIPMAP_FULL) || (size == DT_MIPMAP_FULL_UNSCALED));
 
   struct dt_mipmap_buffer_dsc** dsc = (struct dt_mipmap_buffer_dsc**)a;
 
@@ -757,6 +757,22 @@ void dt_mipmap_cache_init(dt_mipmap_cache_t *cache)
   cache->mip[DT_MIPMAP_FULL].size = DT_MIPMAP_FULL;
   cache->mip[DT_MIPMAP_FULL].buf = NULL;
 
+  // full unscaled buffer needs dynamic alloc:
+  const int full_unscaled_entries = MAX(2, parallel); // even with one thread you want two buffers. one for dr one for thumbs.
+  int32_t max_mem_bufs_unscaled = nearest_power_of_two(full_unscaled_entries);
+
+  // for this buffer, because it can be very busy during import, we want the minimum
+  // number of entries in the hashtable to be 16, but leave the quota as is. the dynamic
+  // alloc/free properties of this cache take care that no more memory is required.
+  dt_cache_init(&cache->mip[DT_MIPMAP_FULL_UNSCALED].cache, max_mem_bufs_unscaled, parallel, 64, max_mem_bufs_unscaled);
+  dt_cache_set_allocate_callback(&cache->mip[DT_MIPMAP_FULL_UNSCALED].cache,
+                                 dt_mipmap_cache_allocate_dynamic, &cache->mip[DT_MIPMAP_FULL_UNSCALED]);
+  // dt_cache_set_cleanup_callback(&cache->mip[DT_MIPMAP_FULL_UNSCALED].cache,
+  // &dt_mipmap_cache_deallocate_dynamic, &cache->mip[DT_MIPMAP_FULL_UNSCALED]);
+  cache->mip[DT_MIPMAP_FULL_UNSCALED].buffer_size = 0;
+  cache->mip[DT_MIPMAP_FULL_UNSCALED].size = DT_MIPMAP_FULL_UNSCALED;
+  cache->mip[DT_MIPMAP_FULL_UNSCALED].buf = NULL;
+
   // same for mipf:
   dt_cache_init(&cache->mip[DT_MIPMAP_F].cache, max_mem_bufs, parallel, 64, max_mem_bufs);
   dt_cache_set_allocate_callback(&cache->mip[DT_MIPMAP_F].cache,
@@ -889,7 +905,7 @@ dt_mipmap_cache_read_get(
     if(!dsc)
     {
       // should never happen for anything but full images which have been moved.
-      assert(mip == DT_MIPMAP_FULL || mip == DT_MIPMAP_F);
+      assert(mip == DT_MIPMAP_FULL_UNSCALED || mip == DT_MIPMAP_FULL || mip == DT_MIPMAP_F);
       // fprintf(stderr, "[mipmap cache get] no data in cache for imgid %u size %d!\n", imgid, mip);
       // sorry guys, no image for you :(
       buf->width = buf->height = 0;
@@ -908,7 +924,7 @@ dt_mipmap_cache_read_get(
         // fprintf(stderr, "[mipmap cache get] now initializing buffer for img %u mip %d!\n", imgid, mip);
         // we're write locked here, as requested by the alloc callback.
         // now fill it with data:
-        if(mip == DT_MIPMAP_FULL)
+        if((mip == DT_MIPMAP_FULL) || (mip == DT_MIPMAP_FULL_UNSCALED))
         {
           // load the image:
           // make sure we access the r/w lock as shortly as possible!
@@ -918,6 +934,8 @@ dt_mipmap_cache_read_get(
           // dt_image_t *img = dt_image_cache_write_get(darktable.image_cache, cimg);
           // dt_image_cache_write_release(darktable.image_cache, img, DT_IMAGE_CACHE_RELAXED);
           dt_image_cache_read_release(darktable.image_cache, cimg);
+
+          if(mip == DT_MIPMAP_FULL_UNSCALED) buffered_image.raw_black_white_prescaled = false;
 
           char filename[PATH_MAX];
           gboolean from_cache = TRUE;

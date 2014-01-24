@@ -155,7 +155,7 @@ dt_imageio_open_rawspeed(
 
     // only scale colors for sizeof(uint16_t) per pixel, not sizeof(float)
     // if(r->getDataType() != TYPE_FLOAT32) scale_black_white((uint16_t *)r->getData(), r->blackLevel, r->whitePoint, r->dim.x, r->dim.y, r->pitch/r->getBpp());
-    if(r->getDataType() != TYPE_FLOAT32) r->scaleBlackWhite();
+    if((r->getDataType() != TYPE_FLOAT32) && img->raw_black_white_prescaled) r->scaleBlackWhite();
     img->bpp = r->getBpp();
     img->filters = r->cfa.getDcrawFilter();
     if(img->filters)
@@ -174,7 +174,7 @@ dt_imageio_open_rawspeed(
     img->raw_black_level = r->blackLevel;
     img->raw_white_point = r->whitePoint;
 
-    void *buf = dt_mipmap_cache_alloc(img, DT_MIPMAP_FULL, a);
+    void *buf = dt_mipmap_cache_alloc(img, img->raw_black_white_prescaled ? DT_MIPMAP_FULL : DT_MIPMAP_FULL_UNSCALED, a);
     if(!buf)
       return DT_IMAGEIO_CACHE_FULL;
 
@@ -225,10 +225,12 @@ dt_imageio_open_rawspeed_sraw(dt_image_t *img, RawImage r, dt_mipmap_cache_alloc
   if(!buf)
     return DT_IMAGEIO_CACHE_FULL;
 
-  int black = r->blackLevel;
-  int white = r->whitePoint;
 
-  ushort16* raw_img = (ushort16*)r->getData();
+  if(img->raw_black_white_prescaled) {
+    int black = r->blackLevel;
+    int white = r->whitePoint;
+
+    ushort16* raw_img = (ushort16*)r->getData();
 
 #if 0
   dt_imageio_flip_buffers_ui16_to_float(buf, raw_img, black, white, 3, raw_width, raw_height,
@@ -244,6 +246,7 @@ dt_imageio_open_rawspeed_sraw(dt_image_t *img, RawImage r, dt_mipmap_cache_alloc
           // ((float)raw_img[row*(raw_width + raw_width_extra)*3 + col*3 + k] - black) * scale;
           ((float)raw_img[row*(r->pitch/2) + col*3 + k] - black) * scale;
 #endif
+  }
 
   return DT_IMAGEIO_OK;
 }
