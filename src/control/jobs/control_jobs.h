@@ -85,6 +85,8 @@ void dt_control_set_local_copy_images();
 void dt_control_reset_local_copy_images();
 void dt_control_export(GList *imgid_list,int max_width, int max_height, int format_index, int storage_index, gboolean high_quality,char *style);
 void dt_control_merge_hdr();
+void dt_control_merge_sum();
+void dt_control_merge_average();
 
 void dt_control_seed_denoise();
 void dt_control_denoise();

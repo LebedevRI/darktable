@@ -270,6 +270,233 @@ error:
   return 0;
 }
 
+int32_t dt_control_merge_sum_job_run(dt_job_t *job)
+{
+  int imgid = -1;
+  dt_control_image_enumerator_t *t1 = (dt_control_image_enumerator_t *)job->param;
+  GList *t = t1->index;
+  int total = g_list_length(t);
+  char message[512]= {0};
+  double fraction=0;
+  snprintf(message, 512, ngettext ("merging %d image", "merging %d images", total), total );
+
+  const guint *jid = dt_control_backgroundjobs_create(darktable.control, 1, message);
+
+  float *pixels = NULL;
+  int wd = 0, ht = 0, first_imgid = -1;
+  uint32_t filter = 0;
+  total ++;
+  while(t)
+  {
+    imgid = GPOINTER_TO_INT(t->data);
+    dt_mipmap_buffer_t buf;
+    dt_mipmap_cache_read_get(darktable.mipmap_cache, &buf, imgid, DT_MIPMAP_FULL_UNSCALED, DT_MIPMAP_BLOCKING);
+    // just take a copy. also do it after blocking read, so filters and bpp will make sense.
+    const dt_image_t *img = dt_image_cache_read_get(darktable.image_cache, imgid);
+    dt_image_t image = *img;
+    printf("image.raw_black_white_prescaled = %i\n", image.raw_black_white_prescaled);
+    dt_image_cache_read_release(darktable.image_cache, img);
+    if(image.filters == 0 || image.bpp != sizeof(uint16_t))
+    {
+      dt_control_log(_("sum only works on raw images"));
+      dt_mipmap_cache_read_release(darktable.mipmap_cache, &buf);
+      free(pixels);
+      goto error;
+    }
+    filter = dt_image_flipped_filter(img);
+    if(buf.size != DT_MIPMAP_FULL_UNSCALED)
+    {
+      dt_control_log(_("failed to get raw buffer from image `%s'"), image.filename);
+      dt_mipmap_cache_read_release(darktable.mipmap_cache, &buf);
+      free(pixels);
+      goto error;
+    }
+
+    if(!pixels)
+    {
+      first_imgid = imgid;
+      pixels = (float *)malloc(sizeof(float)*image.width*image.height);
+      memset(pixels, 0x0, sizeof(float)*image.width*image.height);
+      wd = image.width;
+      ht = image.height;
+    }
+    else if(image.width != wd || image.height != ht)
+    {
+      dt_control_log(_("images have to be of same size!"));
+      free(pixels);
+      dt_mipmap_cache_read_release(darktable.mipmap_cache, &buf);
+      goto error;
+    }
+#ifdef _OPENMP
+    #pragma omp parallel for schedule(static) default(none) shared(buf, pixels, wd, ht)
+#endif
+    for(int k=0; k<wd*ht; k++)
+    {
+      const uint16_t in = ((uint16_t *)buf.buf)[k];
+      pixels[k] += in;
+    }
+
+    t = g_list_delete_link(t, t);
+
+    /* update backgroundjob ui plate */
+    fraction+=1.0/total;
+    dt_control_backgroundjobs_progress(darktable.control, jid, fraction);
+
+    dt_mipmap_cache_read_release(darktable.mipmap_cache, &buf);
+  }
+
+#ifdef _OPENMP
+  #pragma omp parallel for schedule(static) default(none) shared(pixels, wd, ht, total)
+#endif
+  for(int k=0; k<wd*ht; k++)
+  {
+      pixels[k] /= (float)(UINT16_MAX);
+  }
+
+  // output sum as digital negative with exif data.
+  uint8_t exif[65535];
+  char pathname[PATH_MAX];
+  gboolean from_cache = TRUE;
+  dt_image_full_path(first_imgid, pathname, PATH_MAX, &from_cache);
+  // last param is dng mode
+  const int exif_len = dt_exif_read_blob(exif, pathname, first_imgid, 0, wd, ht, 1);
+  char *c = pathname + strlen(pathname);
+  while(*c != '.' && c > pathname) c--;
+  g_strlcpy(c, "-sum.dng", sizeof(pathname)-(c-pathname));
+  dt_imageio_write_dng(pathname, pixels, wd, ht, exif, exif_len, filter, 1.0f);
+
+  dt_control_backgroundjobs_progress(darktable.control, jid, 1.0f);
+
+  while(*c != '/' && c > pathname) c--;
+  dt_control_log(_("wrote merged sum `%s'"), c+1);
+
+  // import new image
+  gchar *directory = g_path_get_dirname((const gchar *)pathname);
+  dt_film_t film;
+  const int filmid = dt_film_new(&film, directory);
+  dt_image_import(filmid, pathname, TRUE);
+  g_free (directory);
+
+  free(pixels);
+error:
+  dt_control_backgroundjobs_destroy(darktable.control, jid);
+  dt_control_queue_redraw_center();
+  return 0;
+}
+
+int32_t dt_control_merge_average_job_run(dt_job_t *job)
+{
+  int imgid = -1;
+  dt_control_image_enumerator_t *t1 = (dt_control_image_enumerator_t *)job->param;
+  GList *t = t1->index;
+  int total = g_list_length(t);
+  char message[512]= {0};
+  double fraction=0;
+  snprintf(message, 512, ngettext ("merging %d image", "merging %d images", total), total );
+
+  const guint *jid = dt_control_backgroundjobs_create(darktable.control, 1, message);
+
+  float *pixels = NULL;
+  int wd = 0, ht = 0, first_imgid = -1;
+  uint32_t filter = 0;
+  total ++;
+  while(t)
+  {
+    imgid = GPOINTER_TO_INT(t->data);
+    dt_mipmap_buffer_t buf;
+    dt_mipmap_cache_read_get(darktable.mipmap_cache, &buf, imgid, DT_MIPMAP_FULL_UNSCALED, DT_MIPMAP_BLOCKING);
+    // just take a copy. also do it after blocking read, so filters and bpp will make sense.
+    const dt_image_t *img = dt_image_cache_read_get(darktable.image_cache, imgid);
+    dt_image_t image = *img;
+    dt_image_cache_read_release(darktable.image_cache, img);
+    if(image.filters == 0 || image.bpp != sizeof(uint16_t))
+    {
+      dt_control_log(_("average only works on raw images"));
+      dt_mipmap_cache_read_release(darktable.mipmap_cache, &buf);
+      free(pixels);
+      goto error;
+    }
+    filter = dt_image_flipped_filter(img);
+    if(buf.size != DT_MIPMAP_FULL_UNSCALED)
+    {
+      dt_control_log(_("failed to get raw buffer from image `%s'"), image.filename);
+      dt_mipmap_cache_read_release(darktable.mipmap_cache, &buf);
+      free(pixels);
+      goto error;
+    }
+
+    if(!pixels)
+    {
+      first_imgid = imgid;
+      pixels = (float *)malloc(sizeof(float)*image.width*image.height);
+      memset(pixels, 0x0, sizeof(float)*image.width*image.height);
+      wd = image.width;
+      ht = image.height;
+    }
+    else if(image.width != wd || image.height != ht)
+    {
+      dt_control_log(_("images have to be of same size!"));
+      free(pixels);
+      dt_mipmap_cache_read_release(darktable.mipmap_cache, &buf);
+      goto error;
+    }
+#ifdef _OPENMP
+    #pragma omp parallel for schedule(static) default(none) shared(buf, pixels, wd, ht)
+#endif
+    for(int k=0; k<wd*ht; k++)
+    {
+      const uint16_t in = ((uint16_t *)buf.buf)[k];
+      pixels[k] += in;
+    }
+
+    t = g_list_delete_link(t, t);
+
+    /* update backgroundjob ui plate */
+    fraction+=1.0/total;
+    dt_control_backgroundjobs_progress(darktable.control, jid, fraction);
+
+    dt_mipmap_cache_read_release(darktable.mipmap_cache, &buf);
+  }
+
+#ifdef _OPENMP
+  #pragma omp parallel for schedule(static) default(none) shared(pixels, wd, ht, total)
+#endif
+  for(int k=0; k<wd*ht; k++)
+  {
+      pixels[k] /= (float)(UINT16_MAX*(total-1));
+  }
+
+  // output sum as digital negative with exif data.
+  uint8_t exif[65535];
+  char pathname[PATH_MAX];
+  gboolean from_cache = TRUE;
+  dt_image_full_path(first_imgid, pathname, PATH_MAX, &from_cache);
+  // last param is dng mode
+  const int exif_len = dt_exif_read_blob(exif, pathname, first_imgid, 0, wd, ht, 1);
+  char *c = pathname + strlen(pathname);
+  while(*c != '.' && c > pathname) c--;
+  g_strlcpy(c, "-average.dng", sizeof(pathname)-(c-pathname));
+  dt_imageio_write_dng(pathname, pixels, wd, ht, exif, exif_len, filter, 1.0f);
+
+  dt_control_backgroundjobs_progress(darktable.control, jid, 1.0f);
+
+  while(*c != '/' && c > pathname) c--;
+  dt_control_log(_("wrote merged average `%s'"), c+1);
+
+  // import new image
+  gchar *directory = g_path_get_dirname((const gchar *)pathname);
+  dt_film_t film;
+  const int filmid = dt_film_new(&film, directory);
+  dt_image_import(filmid, pathname, TRUE);
+  g_free (directory);
+
+  free(pixels);
+error:
+  dt_control_backgroundjobs_destroy(darktable.control, jid);
+  dt_control_queue_redraw_center();
+  return 0;
+}
+
 int32_t dt_control_duplicate_images_job_run(dt_job_t *job)
 {
   int imgid = -1;
@@ -715,6 +942,22 @@ void dt_control_merge_hdr_job_init(dt_job_t *job)
   dt_control_image_enumerator_job_selected_init(t);
 }
 
+void dt_control_merge_sum_job_init(dt_job_t *job)
+{
+  dt_control_job_init(job, "sum images");
+  job->execute = &dt_control_merge_sum_job_run;
+  dt_control_image_enumerator_t *t = (dt_control_image_enumerator_t *)job->param;
+  dt_control_image_enumerator_job_selected_init(t);
+}
+
+void dt_control_merge_average_job_init(dt_job_t *job)
+{
+  dt_control_job_init(job, "average images");
+  job->execute = &dt_control_merge_average_job_run;
+  dt_control_image_enumerator_t *t = (dt_control_image_enumerator_t *)job->param;
+  dt_control_image_enumerator_job_selected_init(t);
+}
+
 void dt_control_duplicate_images_job_init(dt_job_t *job)
 {
   dt_control_job_init(job, "duplicate images");
@@ -768,6 +1011,20 @@ void dt_control_merge_hdr()
 {
   dt_job_t j;
   dt_control_merge_hdr_job_init(&j);
+  dt_control_add_job(darktable.control, &j);
+}
+
+void dt_control_merge_sum()
+{
+  dt_job_t j;
+  dt_control_merge_sum_job_init(&j);
+  dt_control_add_job(darktable.control, &j);
+}
+
+void dt_control_merge_average()
+{
+  dt_job_t j;
+  dt_control_merge_average_job_init(&j);
   dt_control_add_job(darktable.control, &j);
 }
 

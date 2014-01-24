@@ -119,6 +119,8 @@ button_clicked(GtkWidget *widget, gpointer user_data)
   else if(i == 11) _ungroup_helper_function();
   else if(i == 12) dt_control_set_local_copy_images();
   else if(i == 13) dt_control_reset_local_copy_images();
+  else if(i == 14) dt_control_merge_sum();
+  else if(i == 15) dt_control_merge_average();
 }
 
 int
@@ -179,6 +181,21 @@ gui_init (dt_lib_module_t *self)
   g_object_set(G_OBJECT(button), "tooltip-text", _("add a duplicate to the collection, including its history stack"), (char *)NULL);
   gtk_box_pack_start(hbox, button, TRUE, TRUE, 0);
   g_signal_connect(G_OBJECT(button), "clicked", G_CALLBACK(button_clicked), GINT_TO_POINTER(3));
+
+  gtk_box_pack_start(GTK_BOX(self->widget), GTK_WIDGET(hbox), TRUE, TRUE, 0);
+  hbox = GTK_BOX(gtk_hbox_new(TRUE, 5));
+
+  button = gtk_button_new_with_label(_("sum"));
+  d->create_hdr_button = button;
+  gtk_box_pack_start(hbox, button, TRUE, TRUE, 0);
+  g_signal_connect(G_OBJECT(button), "clicked", G_CALLBACK(button_clicked), GINT_TO_POINTER(14));
+  g_object_set(G_OBJECT(button), "tooltip-text", _("create image as sum from selected shots"), (char *)NULL);
+
+  button = gtk_button_new_with_label(_("average"));
+  d->duplicate_button = button;
+  g_object_set(G_OBJECT(button), "tooltip-text", _("create image as average from selected shots"), (char *)NULL);
+  gtk_box_pack_start(hbox, button, TRUE, TRUE, 0);
+  g_signal_connect(G_OBJECT(button), "clicked", G_CALLBACK(button_clicked), GINT_TO_POINTER(15));
 
   gtk_box_pack_start(GTK_BOX(self->widget), GTK_WIDGET(hbox), TRUE, TRUE, 0);
   hbox = GTK_BOX(gtk_hbox_new(TRUE, 5));
