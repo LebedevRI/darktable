@@ -881,6 +881,7 @@ void dt_image_init(dt_image_t *img)
   img->longitude = NAN;
   img->raw_black_white_prescaled = true;
   img->raw_black_level = 0;
+  for(int c=0; c<4; c++) img->raw_black_level_separate[c] = 0;
   img->raw_white_point = 16384; // 2^14
   img->d65_color_matrix[0] = NAN;
   img->profile = NULL;

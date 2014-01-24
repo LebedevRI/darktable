@@ -172,6 +172,7 @@ dt_imageio_open_rawspeed(
 
     /* needed in exposure iop for Deflicker */
     img->raw_black_level = r->blackLevel;
+    for(int c=0; c<4; c++) img->raw_black_level_separate[c] = r->blackLevelSeparate[c];
     img->raw_white_point = r->whitePoint;
 
     void *buf = dt_mipmap_cache_alloc(img, img->raw_black_white_prescaled ? DT_MIPMAP_FULL : DT_MIPMAP_FULL_UNSCALED, a);
@@ -210,6 +211,7 @@ dt_imageio_open_rawspeed_sraw(dt_image_t *img, RawImage r, dt_mipmap_cache_alloc
 
   /* needed by Deflicker */
   img->raw_black_level = r->blackLevel;
+  for(int c=0; c<4; c++) img->raw_black_level_separate[c] = r->blackLevelSeparate[c];
   img->raw_white_point = r->whitePoint;
 
   size_t raw_width = r->dim.x;

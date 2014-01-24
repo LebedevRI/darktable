@@ -402,6 +402,7 @@ dt_imageio_open_raw(
 
   ret = libraw_unpack(raw);
   img->raw_black_level = raw->color.black;
+  for(int c=0; c<4; c++) img->raw_black_level_separate[c] = raw->color.cblack[c];
   img->raw_white_point = raw->color.maximum;
   HANDLE_ERRORS(ret, 1);
   ret = libraw_dcraw_process(raw);

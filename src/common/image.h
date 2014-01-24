@@ -25,6 +25,7 @@
 #include "common/dtpthread.h"
 #include <glib.h>
 #include <inttypes.h>
+#include <stdbool.h>
 
 /** return value of image io functions. */
 typedef enum dt_imageio_retval_t
@@ -123,6 +124,7 @@ typedef struct dt_image_t
   bool raw_black_white_prescaled;
   /* needed in exposure iop for Deflicker */
   uint16_t raw_black_level;
+  uint16_t raw_black_level_separate[4];
   uint16_t raw_white_point;
 }
 dt_image_t;
