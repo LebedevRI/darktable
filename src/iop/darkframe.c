@@ -34,6 +34,7 @@ DT_MODULE_INTROSPECTION(1, dt_iop_darkframe_params_t)
 typedef struct dt_iop_darkframe_params_t
 {
   char filename[PATH_MAX];
+  int divider;
 }
 dt_iop_darkframe_params_t;
 
