@@ -51,7 +51,7 @@ const char *name()
 int
 flags()
 {
-  return IOP_FLAGS_INCLUDE_IN_STYLES | IOP_FLAGS_SUPPORTS_BLENDING;
+  return IOP_FLAGS_INCLUDE_IN_STYLES | IOP_FLAGS_ONE_INSTANCE;
 }
 
 int
@@ -63,50 +63,39 @@ groups()
 int
 output_bpp(dt_iop_module_t *module, dt_dev_pixelpipe_t *pipe, dt_dev_pixelpipe_iop_t *piece)
 {
-  if(!dt_dev_pixelpipe_uses_downsampled_input(pipe) && (pipe->image.flags & DT_IMAGE_RAW)) return sizeof(float);
-  else return 4*sizeof(float);
+  if(!dt_dev_pixelpipe_uses_downsampled_input(pipe) && piece->pipe->image.filters && piece->pipe->image.bpp != 4) return sizeof(uint16_t);
+  if(!dt_dev_pixelpipe_uses_downsampled_input(pipe) && piece->pipe->image.filters && piece->pipe->image.bpp == 4) return sizeof(float);
+  return 4*sizeof(float);
 }
 
 void process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void *ivoid, void *ovoid, const dt_iop_roi_t *roi_in, const dt_iop_roi_t *roi_out)
 {
-  const int filters = dt_image_flipped_filter(&piece->pipe->image);
   dt_iop_rawscale_params_t *d = (dt_iop_rawscale_params_t *)piece->data;
-  d = d;
+
+  const int filters = dt_image_flipped_filter(&piece->pipe->image);
+
+  const float scale = (d->raw_white_point - d->raw_black_level);
+  const float scalef = (d->raw_white_point - d->raw_black_level)/16384.0f;
+
   if(!dt_dev_pixelpipe_uses_downsampled_input(piece->pipe) && filters && piece->pipe->image.bpp != 4)
   {
-    const float coeffsi = 1/65535.0f;
+    printf("me1!!\n");
 #ifdef _OPENMP
     #pragma omp parallel for default(none) shared(roi_out, ivoid, ovoid, d) schedule(static)
 #endif
     for(int j=0; j<roi_out->height; j++)
     {
-      int i=0;
-      const uint16_t *in = ((uint16_t *)ivoid) + j*roi_out->width;
-      float *out = ((float*)ovoid) + j*roi_out->width;
-
-      // process unaligned pixels
-      for ( ; i < ((4-(j*roi_out->width & 3)) & 3) ; i++,out++,in++)
-        *out = *in / coeffsi;
-
-      const __m128 coeffs = _mm_set_ps(coeffsi,
-                                       coeffsi,
-                                       coeffsi,
-                                       coeffsi);
-
-      // process aligned pixels with SSE
-      for( ; i < roi_out->width - 3 ; i+=4,out+=4,in+=4)
+      const uint16_t *in = ((uint16_t*)ivoid) + j*roi_out->width;
+      uint16_t *out = ((uint16_t*)ovoid) + j*roi_out->width;
+      for(int i=0; i<roi_out->width; i++,out++,in++)
       {
-        _mm_stream_ps(out,_mm_div_ps(_mm_set_ps(in[3],in[2],in[1],in[0]),coeffs));
+        *out = CLAMP(0xffff*(*in - d->raw_black_level)/scale, 0, 0xffff);
       }
-
-      // process the rest
-      for( ; i<roi_out->width; i++,out++,in++)
-        *out = *in / coeffsi;
     }
-    _mm_sfence();
   }
   else if(!dt_dev_pixelpipe_uses_downsampled_input(piece->pipe) && filters && piece->pipe->image.bpp == 4)
   {
+    printf("me2!!\n");
 #ifdef _OPENMP
     #pragma omp parallel for default(none) shared(roi_out, ivoid, ovoid, d) schedule(static)
 #endif
@@ -115,11 +104,14 @@ void process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void 
       const float *in = ((float *)ivoid) + j*roi_out->width;
       float *out = ((float*)ovoid) + j*roi_out->width;
       for(int i=0; i<roi_out->width; i++,out++,in++)
-        *out = *in / 1;
+      {
+        *out = (*in - d->raw_black_level/16384.0f)/scalef;
+      }
     }
   }
   else
   {
+    printf("me3!!\n");
     const int ch = piece->colors;
 #ifdef _OPENMP
     #pragma omp parallel for default(none) shared(roi_out, ivoid, ovoid, d) schedule(static)
@@ -128,16 +120,32 @@ void process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void 
     {
       const float *in = ((float*)ivoid) + ch*k*roi_out->width;
       float *out = ((float*)ovoid) + ch*k*roi_out->width;
+         // printf("%f\n", d->raw_black_level/16384.0f);
       for (int j=0; j<roi_out->width; j++,in+=ch,out+=ch)
-        for(int c=0; c<3; c++) out[c] = in[c] / 1;
+        for(int c=0; c<3; c++)
+        {
+          out[c] = (in[c])/scalef;
+          //printf("%f\n", out[c]); d->raw_black_level/16384.0f
+        }
     }
   }
-  for(int k=0; k<3; k++)
-    piece->pipe->processed_maximum[k] = piece->pipe->processed_maximum[k] / 1;
+
+  //for(int k=0; k<3; k++)
+  //  piece->pipe->processed_maximum[k] = 16384.0f*(piece->pipe->processed_maximum[k]-d->raw_black_level) / depth_values;
 }
 
 void reload_defaults(dt_iop_module_t *module)
 {
+//   if(dt_image_is_raw(&module->dev->image_storage))
+//   {
+//     //FIXME: this is just wrong!
+//     module->dev->image_storage.raw_black_white_prescaled = false;
+//
+//     module->default_enabled = 1;
+//     module->hide_enable_button = 1;
+//   }
+//   else module->default_enabled = 0;
+
   dt_iop_rawscale_params_t tmp = (dt_iop_rawscale_params_t)
   {
     0, {0, 0, 0, 0}, 16384
