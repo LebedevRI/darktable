@@ -65,75 +65,17 @@ groups()
 int
 output_bpp(dt_iop_module_t *module, dt_dev_pixelpipe_t *pipe, dt_dev_pixelpipe_iop_t *piece)
 {
-  if(!dt_dev_pixelpipe_uses_downsampled_input(pipe) && (pipe->image.flags & DT_IMAGE_RAW)) return sizeof(float);
-  else return 4*sizeof(float);
+  if(!dt_dev_pixelpipe_uses_downsampled_input(pipe) && piece->pipe->image.filters && piece->pipe->image.bpp != 4) return sizeof(uint16_t);
+  if(!dt_dev_pixelpipe_uses_downsampled_input(pipe) && piece->pipe->image.filters && piece->pipe->image.bpp == 4) return sizeof(float);
+  return 4*sizeof(float);
 }
 
 void process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void *ivoid, void *ovoid, const dt_iop_roi_t *roi_in, const dt_iop_roi_t *roi_out)
 {
-  const int filters = dt_image_flipped_filter(&piece->pipe->image);
-  //dt_iop_temperature_data_t *d = (dt_iop_temperature_data_t *)piece->data;
-  if(!dt_dev_pixelpipe_uses_downsampled_input(piece->pipe) && filters && piece->pipe->image.bpp != 4)
-  {
-#ifdef _OPENMP
-    #pragma omp parallel for default(none) shared(roi_out, ivoid, ovoid) schedule(static)
-#endif
-    for(int j=0; j<roi_out->height; j++)
-    {
-      int i=0;
-      const uint16_t *in = ((uint16_t *)ivoid) + j*roi_out->width;
-      float *out = ((float*)ovoid) + j*roi_out->width;
+  dt_iop_darkframe_params_t *d = (dt_iop_darkframe_params_t *)piece->data;
 
-      // process unaligned pixels
-      for ( ; i < ((4-(j*roi_out->width & 3)) & 3) ; i++,out++,in++)
-        *out = *in +1;
-
-      const __m128 coeffs = _mm_set_ps(1.0f,
-                                       1.0f,
-                                       1.0f,
-                                       1.0f);
-
-      // process aligned pixels with SSE
-      for( ; i < roi_out->width - 3 ; i+=4,out+=4,in+=4)
-      {
-        _mm_stream_ps(out,_mm_mul_ps(coeffs,_mm_set_ps(in[3],in[2],in[1],in[0])));
-      }
-
-      // process the rest
-      for( ; i<roi_out->width; i++,out++,in++)
-        *out = *in;
-    }
-    _mm_sfence();
-  }
-  else if(!dt_dev_pixelpipe_uses_downsampled_input(piece->pipe) && filters && piece->pipe->image.bpp == 4)
-  {
-#ifdef _OPENMP
-    #pragma omp parallel for default(none) shared(roi_out, ivoid, ovoid) schedule(static)
-#endif
-    for(int j=0; j<roi_out->height; j++)
-    {
-      const float *in = ((float *)ivoid) + j*roi_out->width;
-      float *out = ((float*)ovoid) + j*roi_out->width;
-      for(int i=0; i<roi_out->width; i++,out++,in++)
-        *out = *in;
-    }
-  }
-  else
-  {
-    const int ch = piece->colors;
-#ifdef _OPENMP
-    #pragma omp parallel for default(none) shared(roi_out, ivoid, ovoid) schedule(static)
-#endif
-    for(int k=0; k<roi_out->height; k++)
-    {
-      const float *in = ((float*)ivoid) + ch*k*roi_out->width;
-      float *out = ((float*)ovoid) + ch*k*roi_out->width;
-      for (int j=0; j<roi_out->width; j++,in+=ch,out+=ch)
-        for(int c=0; c<3; c++) out[c] = in[c];
-    }
-  }
-  //for(int k=0; k<3; k++)
-  //  piece->pipe->processed_maximum[k] = piece->pipe->processed_maximum[k];
+  for(int k=0; k<3; k++)
+    piece->pipe->processed_maximum[k] = piece->pipe->processed_maximum[k] / d->divider;
 }
 
 /** optional: if this exists, it will be called to init new defaults if a new image is loaded from film strip mode. */
