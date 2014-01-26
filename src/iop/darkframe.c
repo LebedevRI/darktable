@@ -74,6 +74,8 @@ void process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void 
 {
   dt_iop_darkframe_params_t *d = (dt_iop_darkframe_params_t *)piece->data;
 
+  //
+
   for(int k=0; k<3; k++)
     piece->pipe->processed_maximum[k] = piece->pipe->processed_maximum[k] / d->divider;
 }
