@@ -109,6 +109,7 @@ int dt_dlopencl_init(const char *name, dt_dlopencl_t **ocl)
     success = success && dt_gmodule_symbol(module, "clCreateKernel", (void (**)(void))&d->symbols->dt_clCreateKernel);
     success = success && dt_gmodule_symbol(module, "clCreateBuffer", (void (**)(void))&d->symbols->dt_clCreateBuffer);
     success = success && dt_gmodule_symbol(module, "clCreateImage2D", (void (**)(void))&d->symbols->dt_clCreateImage2D);
+    success = success && dt_gmodule_symbol(module, "clCreateImage", (void (**)(void))&d->symbols->dt_clCreateImage);
     success = success && dt_gmodule_symbol(module, "clEnqueueWriteBuffer", (void (**)(void))&d->symbols->dt_clEnqueueWriteBuffer);
     success = success && dt_gmodule_symbol(module, "clSetKernelArg", (void (**)(void))&d->symbols->dt_clSetKernelArg);
     success = success && dt_gmodule_symbol(module, "clGetKernelWorkGroupInfo", (void (**)(void))&d->symbols->dt_clGetKernelWorkGroupInfo);

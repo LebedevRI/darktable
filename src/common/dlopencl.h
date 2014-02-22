@@ -52,6 +52,7 @@ typedef cl_int (* dt_clSetCommandQueueProperty_t)(cl_command_queue, cl_command_q
 typedef cl_mem (* dt_clCreateBuffer_t)(cl_context, cl_mem_flags, size_t, void *, cl_int *);
 typedef cl_mem (* dt_clCreateSubBuffer_t)(cl_mem, cl_mem_flags, cl_buffer_create_type, const void *, cl_int *);
 typedef cl_mem (* dt_clCreateImage2D_t)(cl_context, cl_mem_flags, const cl_image_format *, size_t, size_t, size_t, void *, cl_int *);
+typedef cl_mem (* dt_clCreateImage_t)(cl_context, cl_mem_flags, const cl_image_format *, const cl_image_desc *, void *, cl_int *);
 typedef cl_mem (* dt_clCreateImage3D_t)(cl_context, cl_mem_flags, const cl_image_format *, size_t, size_t, size_t, size_t, size_t, void *, cl_int *);
 typedef cl_int (* dt_clRetainMemObject_t)(cl_mem);
 typedef cl_int (* dt_clReleaseMemObject_t)(cl_mem);
@@ -128,6 +129,7 @@ typedef struct dt_dlopencl_symbols_t
   dt_clCreateBuffer_t dt_clCreateBuffer;
   dt_clCreateSubBuffer_t dt_clCreateSubBuffer;
   dt_clCreateImage2D_t dt_clCreateImage2D;
+  dt_clCreateImage_t dt_clCreateImage;
   dt_clCreateImage3D_t dt_clCreateImage3D;
   dt_clRetainMemObject_t dt_clRetainMemObject;
   dt_clReleaseMemObject_t dt_clReleaseMemObject;

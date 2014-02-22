@@ -1365,6 +1365,7 @@ void* dt_opencl_copy_host_to_device_rowpitch(const int devid, void *host, const 
   if(!darktable.opencl->inited || devid < 0) return NULL;
   cl_int err;
   cl_image_format fmt;
+  cl_image_desc desc;
   // guess pixel format from bytes per pixel
   if(bpp == 4*sizeof(float))
     fmt = (cl_image_format)
@@ -1383,11 +1384,16 @@ void* dt_opencl_copy_host_to_device_rowpitch(const int devid, void *host, const 
   };
   else return NULL;
 
+  desc = (cl_image_desc)
+  {
+    CL_MEM_OBJECT_IMAGE2D, width, height, 0, 0, rowpitch, 0, 0, 0, NULL
+  };
+
   // TODO: if fmt = uint16_t, blow up to 4xuint16_t and copy manually!
-  cl_mem dev = (darktable.opencl->dlocl->symbols->dt_clCreateImage2D) (darktable.opencl->dev[devid].context,
+  cl_mem dev = (darktable.opencl->dlocl->symbols->dt_clCreateImage) (darktable.opencl->dev[devid].context,
                CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
                &fmt,
-               width, height, rowpitch,
+               &desc,
                host, &err);
   if(err != CL_SUCCESS) dt_print(DT_DEBUG_OPENCL, "[opencl copy_host_to_device] could not alloc/copy img buffer on device %d: %d\n", devid, err);
   return dev;
@@ -1426,6 +1432,7 @@ void* dt_opencl_alloc_device(const int devid, const int width, const int height,
   if(!darktable.opencl->inited || devid < 0) return NULL;
   cl_int err;
   cl_image_format fmt;
+  cl_image_desc desc;
   // guess pixel format from bytes per pixel
   if(bpp == 4*sizeof(float))
     fmt = (cl_image_format)
@@ -1444,10 +1451,15 @@ void* dt_opencl_alloc_device(const int devid, const int width, const int height,
   };
   else return NULL;
 
-  cl_mem dev = (darktable.opencl->dlocl->symbols->dt_clCreateImage2D) (darktable.opencl->dev[devid].context,
+  desc = (cl_image_desc)
+  {
+    CL_MEM_OBJECT_IMAGE2D, width, height, 0, 0, 0, 0, 0, 0, NULL
+  };
+
+  cl_mem dev = (darktable.opencl->dlocl->symbols->dt_clCreateImage) (darktable.opencl->dev[devid].context,
                CL_MEM_READ_WRITE,
                &fmt,
-               width, height, 0,
+               &desc,
                NULL, &err);
   if(err != CL_SUCCESS) dt_print(DT_DEBUG_OPENCL, "[opencl alloc_device] could not alloc img buffer on device %d: %d\n", devid, err);
   return dev;
@@ -1459,6 +1471,7 @@ void* dt_opencl_alloc_device_use_host_pointer(const int devid, const int width, 
   if(!darktable.opencl->inited || devid < 0) return NULL;
   cl_int err;
   cl_image_format fmt;
+  cl_image_desc desc;
   // guess pixel format from bytes per pixel
   if(bpp == 4*sizeof(float))
     fmt = (cl_image_format)
@@ -1477,10 +1490,15 @@ void* dt_opencl_alloc_device_use_host_pointer(const int devid, const int width, 
   };
   else return NULL;
 
-  cl_mem dev = (darktable.opencl->dlocl->symbols->dt_clCreateImage2D) (darktable.opencl->dev[devid].context,
+  desc = (cl_image_desc)
+  {
+    CL_MEM_OBJECT_IMAGE2D, width, height, 0, 0, rowpitch, 0, 0, 0, NULL
+  };
+
+  cl_mem dev = (darktable.opencl->dlocl->symbols->dt_clCreateImage) (darktable.opencl->dev[devid].context,
                CL_MEM_READ_WRITE | ((host == NULL) ? CL_MEM_ALLOC_HOST_PTR : CL_MEM_USE_HOST_PTR),
                &fmt,
-               width, height, rowpitch,
+               &desc,
                host, &err);
   if(err != CL_SUCCESS) dt_print(DT_DEBUG_OPENCL, "[opencl alloc_device_use_host_pointer] could not alloc img buffer on device %d: %d\n", devid, err);
   return dev;
