@@ -60,7 +60,8 @@ dt_iop_demosaic_gui_data_t;
 typedef struct dt_iop_demosaic_global_data_t
 {
   // demosaic pattern
-  int kernel_green_eq;
+  int kernel_green_eq_lavg;
+  int kernel_green_eq_favg;
   int kernel_pre_median;
   int kernel_ppg_green;
   int kernel_ppg_green_median;
@@ -1626,18 +1627,40 @@ process_cl (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_mem 
     dev_green_eq = NULL;
     if(data->green_eq != DT_IOP_GREEN_EQ_NO)
     {
-      // green equilibration
-      dev_green_eq = dt_opencl_alloc_device(devid, roi_in->width, roi_in->height, sizeof(float));
-      if (dev_green_eq == NULL) goto error;
-      dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq, 0, sizeof(cl_mem), &dev_in);
-      dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq, 1, sizeof(cl_mem), &dev_green_eq);
-      dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq, 2, sizeof(int), &width);
-      dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq, 3, sizeof(int), &height);
-      dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq, 4, sizeof(uint32_t), (void*)&data->filters);
-      dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq, 5, sizeof(float), (void*)&threshold);
-      err = dt_opencl_enqueue_kernel_2d(devid, gd->kernel_green_eq, sizes);
-      if(err != CL_SUCCESS) goto error;
-      dev_in = dev_green_eq;
+      switch(data->green_eq)
+      {
+        case DT_IOP_GREEN_EQ_FULL:
+          dev_green_eq = dt_opencl_alloc_device(devid, roi_in->width, roi_in->height, sizeof(float));
+          if (dev_green_eq == NULL) goto error;
+          dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq_favg, 0, sizeof(cl_mem), &dev_in);
+          dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq_favg, 1, sizeof(cl_mem), &dev_green_eq);
+          dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq_favg, 2, sizeof(int), &width);
+          dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq_favg, 3, sizeof(int), &height);
+          dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq_favg, 4, sizeof(uint32_t), (void*)&data->filters);
+          err = dt_opencl_enqueue_kernel_2d(devid, gd->kernel_green_eq_favg, sizes);
+          if(err != CL_SUCCESS) goto error;
+          dev_in = dev_green_eq;
+          break;
+        case DT_IOP_GREEN_EQ_LOCAL:
+          dev_green_eq = dt_opencl_alloc_device(devid, roi_in->width, roi_in->height, sizeof(float));
+          if (dev_green_eq == NULL) goto error;
+          dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq_lavg, 0, sizeof(cl_mem), &dev_in);
+          dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq_lavg, 1, sizeof(cl_mem), &dev_green_eq);
+          dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq_lavg, 2, sizeof(int), &width);
+          dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq_lavg, 3, sizeof(int), &height);
+          dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq_lavg, 4, sizeof(uint32_t), (void*)&data->filters);
+          dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq_lavg, 5, sizeof(float), (void*)&threshold);
+          err = dt_opencl_enqueue_kernel_2d(devid, gd->kernel_green_eq_lavg, sizes);
+          if(err != CL_SUCCESS) goto error;
+          dev_in = dev_green_eq;
+          break;
+        case DT_IOP_GREEN_EQ_BOTH:
+//           green_equilibration_favg(in, pixels, roi_in->width, roi_in->height,
+//                                    data->filters,  roi_in->x, roi_in->y);
+//           green_equilibration_lavg(in, in, roi_in->width, roi_in->height,
+//                                    data->filters, roi_in->x, roi_in->y, 1, threshold);
+          break;
+      }
     }
 
     if(data->median_thrs > 0.0f)
@@ -1700,20 +1723,43 @@ process_cl (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_mem 
     const int width = roi_in->width;
     const int height = roi_in->height;
     size_t sizes[2] = { ROUNDUPWD(width), ROUNDUPHT(height) };
+    dev_green_eq = NULL;
     if(data->green_eq != DT_IOP_GREEN_EQ_NO)
     {
-      // green equilibration
-      dev_green_eq = dt_opencl_alloc_device(devid, roi_in->width, roi_in->height, sizeof(float));
-      if (dev_green_eq == NULL) goto error;
-      dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq, 0, sizeof(cl_mem), &dev_in);
-      dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq, 1, sizeof(cl_mem), &dev_green_eq);
-      dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq, 2, sizeof(int), &width);
-      dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq, 3, sizeof(int), &height);
-      dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq, 4, sizeof(uint32_t), (void*)&data->filters);
-      dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq, 5, sizeof(float), (void*)&threshold);
-      err = dt_opencl_enqueue_kernel_2d(devid, gd->kernel_green_eq, sizes);
-      if(err != CL_SUCCESS) goto error;
-      dev_in = dev_green_eq;
+      switch(data->green_eq)
+      {
+        case DT_IOP_GREEN_EQ_FULL:
+          dev_green_eq = dt_opencl_alloc_device(devid, roi_in->width, roi_in->height, sizeof(float));
+          if (dev_green_eq == NULL) goto error;
+          dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq_favg, 0, sizeof(cl_mem), &dev_in);
+          dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq_favg, 1, sizeof(cl_mem), &dev_green_eq);
+          dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq_favg, 2, sizeof(int), &width);
+          dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq_favg, 3, sizeof(int), &height);
+          dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq_favg, 4, sizeof(uint32_t), (void*)&data->filters);
+          err = dt_opencl_enqueue_kernel_2d(devid, gd->kernel_green_eq_favg, sizes);
+          if(err != CL_SUCCESS) goto error;
+          dev_in = dev_green_eq;
+          break;
+        case DT_IOP_GREEN_EQ_LOCAL:
+          dev_green_eq = dt_opencl_alloc_device(devid, roi_in->width, roi_in->height, sizeof(float));
+          if (dev_green_eq == NULL) goto error;
+          dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq_lavg, 0, sizeof(cl_mem), &dev_in);
+          dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq_lavg, 1, sizeof(cl_mem), &dev_green_eq);
+          dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq_lavg, 2, sizeof(int), &width);
+          dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq_lavg, 3, sizeof(int), &height);
+          dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq_lavg, 4, sizeof(uint32_t), (void*)&data->filters);
+          dt_opencl_set_kernel_arg(devid, gd->kernel_green_eq_lavg, 5, sizeof(float), (void*)&threshold);
+          err = dt_opencl_enqueue_kernel_2d(devid, gd->kernel_green_eq_lavg, sizes);
+          if(err != CL_SUCCESS) goto error;
+          dev_in = dev_green_eq;
+          break;
+        case DT_IOP_GREEN_EQ_BOTH:
+//           green_equilibration_favg(in, pixels, roi_in->width, roi_in->height,
+//                                    data->filters,  roi_in->x, roi_in->y);
+//           green_equilibration_lavg(in, in, roi_in->width, roi_in->height,
+//                                    data->filters, roi_in->x, roi_in->y, 1, threshold);
+          break;
+      }
     }
 
     if(data->median_thrs > 0.0f)
@@ -1969,7 +2015,8 @@ void init_global(dt_iop_module_so_t *module)
   module->data = gd;
   gd->kernel_zoom_half_size     = dt_opencl_create_kernel(program, "clip_and_zoom_demosaic_half_size");
   gd->kernel_ppg_green          = dt_opencl_create_kernel(program, "ppg_demosaic_green");
-  gd->kernel_green_eq           = dt_opencl_create_kernel(program, "green_equilibration");
+  gd->kernel_green_eq_lavg      = dt_opencl_create_kernel(program, "green_equilibration_lavg");
+  gd->kernel_green_eq_favg      = dt_opencl_create_kernel(program, "green_equilibration_favg");
   gd->kernel_pre_median         = dt_opencl_create_kernel(program, "pre_median");
   gd->kernel_ppg_green_median   = dt_opencl_create_kernel(program, "ppg_demosaic_green_median");
   gd->kernel_ppg_redblue        = dt_opencl_create_kernel(program, "ppg_demosaic_redblue");
@@ -1992,7 +2039,8 @@ void cleanup_global(dt_iop_module_so_t *module)
   dt_opencl_free_kernel(gd->kernel_zoom_half_size);
   dt_opencl_free_kernel(gd->kernel_ppg_green);
   dt_opencl_free_kernel(gd->kernel_pre_median);
-  dt_opencl_free_kernel(gd->kernel_green_eq);
+  dt_opencl_free_kernel(gd->kernel_green_eq_lavg);
+  dt_opencl_free_kernel(gd->kernel_green_eq_favg);
   dt_opencl_free_kernel(gd->kernel_ppg_green_median);
   dt_opencl_free_kernel(gd->kernel_ppg_redblue);
   dt_opencl_free_kernel(gd->kernel_downsample);
@@ -2024,9 +2072,9 @@ void commit_params (struct dt_iop_module_t *self, dt_iop_params_t *params, dt_de
      (d->demosaicing_method != DT_IOP_DEMOSAIC_VNG4))
     piece->process_cl_ready = 0;
 
-  // OpenCL can not (yet) green-equilibrate over full image.
-  if(d->green_eq == DT_IOP_GREEN_EQ_FULL || d->green_eq == DT_IOP_GREEN_EQ_BOTH)
-    piece->process_cl_ready = 0;
+//   // OpenCL can not (yet) green-equilibrate over full image.
+//   if(d->green_eq == DT_IOP_GREEN_EQ_FULL || d->green_eq == DT_IOP_GREEN_EQ_BOTH)
+//     piece->process_cl_ready = 0;
 }
 
 void init_pipe     (struct dt_iop_module_t *self, dt_dev_pixelpipe_t *pipe, dt_dev_pixelpipe_iop_t *piece)

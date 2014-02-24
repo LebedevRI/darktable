@@ -36,7 +36,7 @@ backtransformf (float2 p, const int r_x, const int r_y, const int r_wd, const in
 }
 
 __kernel void
-green_equilibration(__read_only image2d_t in, __write_only image2d_t out, const int width, const int height, const unsigned int filters, const float thr)
+green_equilibration_lavg(__read_only image2d_t in, __write_only image2d_t out, const int width, const int height, const unsigned int filters, const float thr)
 {
   const int x = get_global_id(0);
   const int y = get_global_id(1);
@@ -74,13 +74,45 @@ green_equilibration(__read_only image2d_t in, __write_only image2d_t out, const 
   else write_imagef (out, (int2)(x, y), o);
 }
 
+__kernel void
+green_equilibration_favg(__read_only image2d_t in, __write_only image2d_t out, const int width, const int height, const unsigned int filters)
+{
+  const int x = get_global_id(0);
+  const int y = get_global_id(1);
+
+  if(x >= width || y >= height) return;
+
+  __local double sum1,sum2;
+
+  const int c = FC(y, x, filters);
+  const float o = read_imagef(in, sampleri, (int2)(x, y)).x;
+
+  if(c == 1) {
+    if(y & 1)
+      sum1 += o;
+    else
+      sum2 += o;
+  }
+
+  barrier(CLK_LOCAL_MEM_FENCE);
+
+  __local double gr_ratio;
+
+  if (sum1 > 0.0 && sum2 > 0.0)
+    gr_ratio = sum1/sum2;
+
+  if(c == 1)
+    write_imagef (out, (int2)(x, y), o / gr_ratio);
+  else write_imagef (out, (int2)(x, y), o);
+}
+
 constant int goffx[18] = { -2,  0,  2, -2,  0,  2, -2,  0,  2,   // r, b
                             0, -1,  1, -2,  0,  2, -1,  1,  0};  // green
 constant int goffy[18] = { -2, -2, -2,  0,  0,  0,  2,  2,  2,   // r, b
                            -2, -1, -1,  0,  0,  0,  1,  1,  2};  // green
 
 __kernel void
-pre_median(__read_only image2d_t in, __write_only image2d_t out, const int width, const int height, 
+pre_median(__read_only image2d_t in, __write_only image2d_t out, const int width, const int height,
            const unsigned int filters, const float thrs, const int f4)
 {
   const int x = get_global_id(0);
