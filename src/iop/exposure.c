@@ -40,13 +40,22 @@
 #define exposure2white(x)	exp2f(-(x))
 #define white2exposure(x)	-dt_log2f(fmaxf(0.001, x))
 
-DT_MODULE_INTROSPECTION(3, dt_iop_exposure_params_t)
+DT_MODULE_INTROSPECTION(4, dt_iop_exposure_params_t)
+
+typedef enum dt_iop_exposure_deflicker_mode_t
+{
+  DEFLICKER_MODE_THUMBNAIL,
+  DEFLICKER_MODE_SOURCEFILE,  // NOT IMPLEMENTED
+  DEFLICKER_MODE_AUTOMATIC    // NOT IMPLEMENTED
+}
+dt_iop_exposure_deflicker_mode_t;
 
 typedef struct dt_iop_exposure_params_t
 {
   float black, exposure;
   gboolean deflicker;
   float deflicker_percentile, deflicker_level;
+  dt_iop_exposure_deflicker_mode_t deflicker_mode;
 }
 dt_iop_exposure_params_t;
 
@@ -60,6 +69,7 @@ typedef struct dt_iop_exposure_gui_data_t
   GtkCheckButton *deflicker;
   GtkWidget *deflicker_percentile;
   GtkWidget *deflicker_level;
+  GtkWidget *deflicker_mode;
 }
 dt_iop_exposure_gui_data_t;
 
@@ -68,6 +78,7 @@ typedef struct dt_iop_exposure_data_t
   float black, exposure;
   gboolean deflicker;
   float deflicker_percentile, deflicker_level;
+  dt_iop_exposure_deflicker_mode_t deflicker_mode;
 }
 dt_iop_exposure_data_t;
 
@@ -103,6 +114,7 @@ void init_key_accels(dt_iop_module_so_t *self)
   dt_accel_register_slider_iop(self, FALSE, NC_("accel", "deflicker"));
   dt_accel_register_slider_iop(self, FALSE, NC_("accel", "deflicker-percentile"));
   dt_accel_register_slider_iop(self, FALSE, NC_("accel", "deflicker-level"));
+  dt_accel_register_slider_iop(self, FALSE, NC_("accel", "deflicker-mode"));
 }
 
 void connect_key_accels(dt_iop_module_t *self)
@@ -115,6 +127,7 @@ void connect_key_accels(dt_iop_module_t *self)
   dt_accel_connect_slider_iop(self, "deflicker", GTK_WIDGET(g->deflicker));
   dt_accel_connect_slider_iop(self, "deflicker-percentile", GTK_WIDGET(g->deflicker_percentile));
   dt_accel_connect_slider_iop(self, "deflicker-level", GTK_WIDGET(g->deflicker_level));
+  dt_accel_connect_slider_iop(self, "deflicker-mode", GTK_WIDGET(g->deflicker_mode));
 }
 
 int
@@ -126,7 +139,7 @@ output_bpp(dt_iop_module_t *module, dt_dev_pixelpipe_t *pipe, dt_dev_pixelpipe_i
 int
 legacy_params (dt_iop_module_t *self, const void *const old_params, const int old_version, void *new_params, const int new_version)
 {
-  if(old_version == 2 && new_version == 3)
+  if(old_version == 2 && new_version == 4)
   {
     typedef struct dt_iop_exposure_params_v2_t
     {
@@ -144,6 +157,29 @@ legacy_params (dt_iop_module_t *self, const void *const old_params, const int ol
     n->exposure = o->exposure;
     return 0;
   }
+  if(old_version == 3 && new_version == 4)
+  {
+    typedef struct dt_iop_exposure_params_v3_t
+    {
+      float black, exposure;
+      gboolean deflicker;
+      float deflicker_percentile, deflicker_level;
+    }
+    dt_iop_exposure_params_v3_t;
+
+    dt_iop_exposure_params_v3_t *o = (dt_iop_exposure_params_v3_t *)old_params;
+    dt_iop_exposure_params_t *n = (dt_iop_exposure_params_t *)new_params;
+    dt_iop_exposure_params_t *d = (dt_iop_exposure_params_t *)self->default_params;
+
+    *n = *d;  // start with a fresh copy of default parameters
+
+    n->black = o->black;
+    n->exposure = o->exposure;
+    n->deflicker = o->deflicker;
+    n->deflicker_percentile = o->deflicker_percentile;
+    n->deflicker_level = o->deflicker_level;
+    return 0;
+  }
   return 1;
 }
 
@@ -153,11 +189,11 @@ void init_presets (dt_iop_module_so_t *self)
 
   dt_gui_presets_add_generic(_("magic lantern defaults"), self->op, self->version(), &(dt_iop_exposure_params_t)
   {
-    0., 0., TRUE, 50., -4.
+    0., 0., TRUE, 50., -4., DEFLICKER_MODE_THUMBNAIL
   } , sizeof(dt_iop_exposure_params_t), 1);
   dt_gui_presets_add_generic(_("almost no clipping"), self->op, self->version(), &(dt_iop_exposure_params_t)
   {
-    0., 0., TRUE, 100., -1.
+    0., 0., TRUE, 100., -1., DEFLICKER_MODE_THUMBNAIL
   } , sizeof(dt_iop_exposure_params_t), 1);
 
   DT_DEBUG_SQLITE3_EXEC(dt_database_get(darktable.db), "commit", NULL, NULL, NULL);
@@ -279,6 +315,7 @@ void commit_params (struct dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pi
   d->deflicker = p->deflicker;
   d->deflicker_percentile = p->deflicker_percentile;
   d->deflicker_level = p->deflicker_level;
+  d->deflicker_mode = p->deflicker_mode;
 }
 
 void init_pipe (struct dt_iop_module_t *self, dt_dev_pixelpipe_t *pipe, dt_dev_pixelpipe_iop_t *piece)
@@ -299,6 +336,7 @@ void gui_update(struct dt_iop_module_t *self)
 
   dt_bauhaus_slider_set(g->black, p->black);
   dt_bauhaus_slider_set_soft(g->exposure, p->exposure);
+  gtk_widget_set_sensitive(GTK_WIDGET(g->exposure), !(p->deflicker && (p->deflicker_mode == DEFLICKER_MODE_AUTOMATIC)));
 
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(g->autoexp), FALSE);
   dt_bauhaus_slider_set(g->autoexpp, 0.01);
@@ -309,6 +347,8 @@ void gui_update(struct dt_iop_module_t *self)
   gtk_widget_set_sensitive(GTK_WIDGET(g->deflicker_percentile), p->deflicker);
   dt_bauhaus_slider_set(g->deflicker_level, p->deflicker_level);
   gtk_widget_set_sensitive(GTK_WIDGET(g->deflicker_level), p->deflicker);
+  dt_bauhaus_combobox_set(g->deflicker_mode, p->deflicker_mode);
+  gtk_widget_set_sensitive(GTK_WIDGET(g->deflicker_mode), p->deflicker);
 
   self->request_color_pick = 0;
 }
@@ -339,7 +379,7 @@ void reload_defaults(dt_iop_module_t *module)
 {
   dt_iop_exposure_params_t tmp = (dt_iop_exposure_params_t)
   {
-    0., 0., FALSE, 100., -1.
+    0., 0., FALSE, 100., -1., DEFLICKER_MODE_THUMBNAIL
   };
 
   tmp.black = 0.0f;
@@ -347,6 +387,7 @@ void reload_defaults(dt_iop_module_t *module)
   tmp.deflicker = FALSE;
   tmp.deflicker_percentile = 100.0f;
   tmp.deflicker_level = -1.0f;
+  tmp.deflicker_mode = DEFLICKER_MODE_THUMBNAIL;
 
   memcpy(module->params, &tmp, sizeof(dt_iop_exposure_params_t));
   memcpy(module->default_params, &tmp, sizeof(dt_iop_exposure_params_t));
@@ -418,6 +459,7 @@ deflicker_disable(dt_iop_module_t *self)
 
   gtk_widget_set_sensitive(GTK_WIDGET(g->deflicker_percentile), FALSE);
   gtk_widget_set_sensitive(GTK_WIDGET(g->deflicker_level), FALSE);
+  gtk_widget_set_sensitive(GTK_WIDGET(g->deflicker_mode), FALSE);
 
   p->deflicker = FALSE;
 
@@ -555,6 +597,7 @@ deflicker_params_callback (GtkWidget* slider, gpointer user_data)
 
   gtk_widget_set_sensitive(GTK_WIDGET(g->deflicker_percentile), p->deflicker);
   gtk_widget_set_sensitive(GTK_WIDGET(g->deflicker_level), p->deflicker);
+  gtk_widget_set_sensitive(GTK_WIDGET(g->deflicker_mode), p->deflicker);
 
   deflicker_process (self);
 }
@@ -581,11 +624,46 @@ deflicker_callback (GtkToggleButton *button, gpointer user_data)
 
   gtk_widget_set_sensitive(GTK_WIDGET(g->deflicker_percentile), p->deflicker);
   gtk_widget_set_sensitive(GTK_WIDGET(g->deflicker_level), p->deflicker);
+  gtk_widget_set_sensitive(GTK_WIDGET(g->deflicker_mode), p->deflicker);
 
   if(p->deflicker) //deflicker has been turend on
   {
     deflicker_params_callback(NULL, user_data);
   }
+
+  dt_dev_add_history_item(darktable.develop, self, TRUE);
+}
+
+static void
+deflicker_mode_callback(GtkWidget *combo, gpointer user_data)
+{
+  dt_iop_module_t *self = (dt_iop_module_t *)user_data;
+
+  if(self->dt->gui->reset) return;
+
+  dt_iop_exposure_gui_data_t *g = (dt_iop_exposure_gui_data_t *)self->gui_data;
+  dt_iop_exposure_params_t *p = (dt_iop_exposure_params_t *)self->params;
+  dt_iop_exposure_deflicker_mode_t new_mode = dt_bauhaus_combobox_get(combo);
+
+  switch(new_mode)
+  {
+    case DEFLICKER_MODE_THUMBNAIL:
+      p->deflicker_mode = DEFLICKER_MODE_THUMBNAIL;
+      break;
+    case DEFLICKER_MODE_SOURCEFILE:
+      p->deflicker_mode = DEFLICKER_MODE_SOURCEFILE;
+      break;
+    case DEFLICKER_MODE_AUTOMATIC:
+      p->deflicker_mode = DEFLICKER_MODE_AUTOMATIC;
+      break;
+    default:
+      p->deflicker_mode = DEFLICKER_MODE_THUMBNAIL;
+      break;
+  }
+
+  gtk_widget_set_sensitive(GTK_WIDGET(g->exposure), !(p->deflicker && (p->deflicker_mode == DEFLICKER_MODE_AUTOMATIC)));
+
+  deflicker_process(self);
 
   dt_dev_add_history_item(darktable.develop, self, TRUE);
 }
@@ -666,6 +744,7 @@ void gui_init(struct dt_iop_module_t *self)
   dt_bauhaus_slider_set_format(g->exposure,"%.2fEV");
   dt_bauhaus_widget_set_label(g->exposure, NULL, _("exposure"));
   dt_bauhaus_slider_enable_soft_boundaries(g->exposure, -18.0, 18.0);
+  gtk_widget_set_sensitive(GTK_WIDGET(g->exposure), !(p->deflicker && (p->deflicker_mode == DEFLICKER_MODE_AUTOMATIC)));
   gtk_box_pack_start(GTK_BOX(self->widget), GTK_WIDGET(g->exposure), TRUE, TRUE, 0);
 
   g->autoexp  = GTK_CHECK_BUTTON(gtk_check_button_new_with_label(_("auto")));
@@ -694,14 +773,29 @@ void gui_init(struct dt_iop_module_t *self)
   dt_bauhaus_widget_set_label(g->deflicker_level, NULL, _("target level"));
   gtk_widget_set_sensitive(GTK_WIDGET(g->deflicker_level), p->deflicker);
 
+  g->deflicker_mode = dt_bauhaus_combobox_new(self);
+  dt_bauhaus_widget_set_label(g->deflicker_mode, NULL, _("mode"));
+  g_object_set(G_OBJECT(g->deflicker_mode), "tooltip-text", _("deflicker mode"), (char *)NULL);
+  dt_bauhaus_combobox_add(g->deflicker_mode, _("thumbnail"));
+  //dt_bauhaus_combobox_add(g->deflicker_mode, _("source raw data")); // NOT IMPLEMENTED
+  //dt_bauhaus_combobox_add(g->deflicker_mode, _("automatic"));       // NOT IMPLEMENTED
+  dt_bauhaus_combobox_set_default(g->deflicker_mode, 2);
+  dt_bauhaus_combobox_set(g->deflicker_mode, p->deflicker_mode);
+
   GtkVBox *vbox = GTK_VBOX(gtk_vbox_new(FALSE, DT_BAUHAUS_SPACE));
-  gtk_box_pack_start(GTK_BOX(vbox), GTK_WIDGET(g->deflicker_percentile), FALSE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(vbox), GTK_WIDGET(g->deflicker_percentile), TRUE, TRUE, 0);
   gtk_box_pack_start(GTK_BOX(vbox), GTK_WIDGET(g->deflicker_level), TRUE, TRUE, 0);
+  gtk_box_pack_start(GTK_BOX(vbox), GTK_WIDGET(g->deflicker_mode), TRUE, TRUE, 0);
 
   GtkHBox *hbox2 = GTK_HBOX(gtk_hbox_new(FALSE, 0));
   gtk_box_pack_start(GTK_BOX(hbox2), GTK_WIDGET(g->deflicker), FALSE, TRUE, 0);
   gtk_box_pack_start(GTK_BOX(hbox2), GTK_WIDGET(vbox), TRUE, TRUE, 0);
 
+  //GtkVBox *vbox2 = GTK_VBOX(gtk_vbox_new(FALSE, DT_BAUHAUS_SPACE));
+  //gtk_box_pack_start(GTK_BOX(vbox2), GTK_WIDGET(hbox2), FALSE, TRUE, 0);
+  //gtk_box_pack_start(GTK_BOX(vbox2), GTK_WIDGET(g->deflicker_mode), TRUE, TRUE, 0);
+
+  //gtk_box_pack_start(GTK_BOX(self->widget), GTK_WIDGET(vbox2), TRUE, TRUE, 0);
   gtk_box_pack_start(GTK_BOX(self->widget), GTK_WIDGET(hbox2), TRUE, TRUE, 0);
 
   darktable.gui->reset = 1;
@@ -722,6 +816,8 @@ void gui_init(struct dt_iop_module_t *self)
                     G_CALLBACK (deflicker_params_callback), self);
   g_signal_connect (G_OBJECT (g->deflicker_level), "value-changed",
                     G_CALLBACK (deflicker_params_callback), self);
+  g_signal_connect (G_OBJECT (g->deflicker_mode), "value-changed",
+                    G_CALLBACK (deflicker_mode_callback), self);
   g_signal_connect (G_OBJECT(self->widget), "expose-event",
                     G_CALLBACK(expose), self);
 }
