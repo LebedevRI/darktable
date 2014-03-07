@@ -48,7 +48,7 @@ typedef enum dt_iop_exposure_deflicker_mode_t
 {
   DEFLICKER_MODE_THUMBNAIL,
   DEFLICKER_MODE_SOURCEFILE,
-  DEFLICKER_MODE_AUTOMATIC    // NOT IMPLEMENTED
+  DEFLICKER_MODE_AUTOMATIC
 }
 dt_iop_exposure_deflicker_mode_t;
 
@@ -201,47 +201,14 @@ void init_presets (dt_iop_module_so_t *self)
   DT_DEBUG_SQLITE3_EXEC(dt_database_get(darktable.db), "commit", NULL, NULL, NULL);
 }
 
-#ifdef HAVE_OPENCL
-int
-process_cl (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_mem dev_in, cl_mem dev_out, const dt_iop_roi_t *roi_in, const dt_iop_roi_t *roi_out)
-{
-  dt_iop_exposure_data_t *d = (dt_iop_exposure_data_t *)piece->data;
-  dt_iop_exposure_global_data_t *gd = (dt_iop_exposure_global_data_t *)self->data;
-
-  cl_int err = -999;
-  const float black = d->black;
-  const float white = exposure2white(d->exposure);
-  const float scale = 1.0/(white - black);
-  const int devid = piece->pipe->devid;
-  const int width = roi_in->width;
-  const int height = roi_in->height;
-
-  size_t sizes[] = { ROUNDUPWD(width), ROUNDUPHT(height), 1};
-  dt_opencl_set_kernel_arg(devid, gd->kernel_exposure, 0, sizeof(cl_mem), (void *)&dev_in);
-  dt_opencl_set_kernel_arg(devid, gd->kernel_exposure, 1, sizeof(cl_mem), (void *)&dev_out);
-  dt_opencl_set_kernel_arg(devid, gd->kernel_exposure, 2, sizeof(int), (void *)&width);
-  dt_opencl_set_kernel_arg(devid, gd->kernel_exposure, 3, sizeof(int), (void *)&height);
-  dt_opencl_set_kernel_arg(devid, gd->kernel_exposure, 4, sizeof(float), (void *)&black);
-  dt_opencl_set_kernel_arg(devid, gd->kernel_exposure, 5, sizeof(float), (void *)&scale);
-  err = dt_opencl_enqueue_kernel_2d(devid, gd->kernel_exposure, sizes);
-  if(err != CL_SUCCESS) goto error;
-  for(int k=0; k<3; k++) piece->pipe->processed_maximum[k] *= scale;
-  return TRUE;
-
-error:
-  dt_print(DT_DEBUG_OPENCL, "[opencl_exposure] couldn't enqueue kernel! %d\n", err);
-  return FALSE;
-}
-#endif
-
 /* input: 0 - 16384 (valid range: from black level to white level) */
 /* output: -14 ... 0 */
 static float raw_to_ev(float raw, float black_level, float white_level)
 {
-    float raw_max = white_level - black_level;
-    float raw_ev = -log2f(raw_max) + log2f(CLAMP(raw, 0.0f, 16384.0f));
+  float raw_max = white_level - black_level;
+  float raw_ev = -log2f(raw_max) + log2f(CLAMP(raw, 0.0f, 16384.0f));
 
-    return raw_ev;
+  return raw_ev;
 }
 
 static int compute_correction(dt_iop_module_t *self, float *histogram, int ch, float *correction)
@@ -280,11 +247,57 @@ static int compute_correction(dt_iop_module_t *self, float *histogram, int ch, f
   return 0;
 }
 
+#ifdef HAVE_OPENCL
+int
+process_cl (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_mem dev_in, cl_mem dev_out, const dt_iop_roi_t *roi_in, const dt_iop_roi_t *roi_out)
+{
+  dt_iop_exposure_data_t *d = (dt_iop_exposure_data_t *)piece->data;
+  dt_iop_exposure_global_data_t *gd = (dt_iop_exposure_global_data_t *)self->data;
+
+  float correction = 0.0f;
+  if(d->deflicker && (d->deflicker_mode == DEFLICKER_MODE_AUTOMATIC))
+  {
+    compute_correction(self, self->histogram, 3, &correction);
+  }
+
+  cl_int err = -999;
+  const float black = d->black;
+  const float white = exposure2white(((d->deflicker && (d->deflicker_mode == DEFLICKER_MODE_AUTOMATIC)) && (correction != 0.0f)) ? correction : d->exposure);
+  const float scale = 1.0/(white - black);
+  const int devid = piece->pipe->devid;
+  const int width = roi_in->width;
+  const int height = roi_in->height;
+
+  size_t sizes[] = { ROUNDUPWD(width), ROUNDUPHT(height), 1};
+  dt_opencl_set_kernel_arg(devid, gd->kernel_exposure, 0, sizeof(cl_mem), (void *)&dev_in);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_exposure, 1, sizeof(cl_mem), (void *)&dev_out);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_exposure, 2, sizeof(int), (void *)&width);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_exposure, 3, sizeof(int), (void *)&height);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_exposure, 4, sizeof(float), (void *)&black);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_exposure, 5, sizeof(float), (void *)&scale);
+  err = dt_opencl_enqueue_kernel_2d(devid, gd->kernel_exposure, sizes);
+  if(err != CL_SUCCESS) goto error;
+  for(int k=0; k<3; k++) piece->pipe->processed_maximum[k] *= scale;
+  return TRUE;
+
+error:
+  dt_print(DT_DEBUG_OPENCL, "[opencl_exposure] couldn't enqueue kernel! %d\n", err);
+  return FALSE;
+}
+#endif
+
 void process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void *i, void *o, const dt_iop_roi_t *roi_in, const dt_iop_roi_t *roi_out)
 {
   dt_iop_exposure_data_t *d = (dt_iop_exposure_data_t *)piece->data;
+
+  float correction = 0.0f;
+  if(d->deflicker && (d->deflicker_mode == DEFLICKER_MODE_AUTOMATIC))
+  {
+    compute_correction(self, self->histogram, 3, &correction);
+  }
+
   const float black = d->black;
-  const float white = exposure2white(d->exposure);
+  const float white = exposure2white(((d->deflicker && (d->deflicker_mode == DEFLICKER_MODE_AUTOMATIC)) && (correction != 0.0f)) ? correction : d->exposure);
   const int ch = piece->colors;
   const float scale = 1.0/(white - black);
   const __m128 blackv = _mm_set1_ps(black);
@@ -369,6 +382,8 @@ void init(dt_iop_module_t *module)
   module->default_params = malloc(sizeof(dt_iop_exposure_params_t));
   module->default_enabled = 0;
   module->request_histogram |=  (DT_REQUEST_ON); //FIXME: only when deflicker is enabled maybe?
+  module->request_histogram &= ~(DT_REQUEST_ONLY_IN_GUI);    //FIXME: only when deflicker is enabled maybe?
+  module->request_histogram_source = (DT_DEV_PIXELPIPE_EXPORT | DT_DEV_PIXELPIPE_FULL | DT_DEV_PIXELPIPE_PREVIEW | DT_DEV_PIXELPIPE_THUMBNAIL); //FIXME: only when deflicker mode automatic is enabled maybe?
   module->histogram_params.bins_count = 16384; // we neeed really maximally reliable histogrem
   module->priority = 175; // module order created by iop_dependencies.py, do not edit!
   module->params_size = sizeof(dt_iop_exposure_params_t);
@@ -457,6 +472,7 @@ deflicker_disable(dt_iop_module_t *self)
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(g->deflicker), FALSE);
   g_signal_handler_unblock(G_OBJECT (g->deflicker), handler_id);
 
+  gtk_widget_set_sensitive(GTK_WIDGET(g->exposure), !(p->deflicker && (p->deflicker_mode == DEFLICKER_MODE_AUTOMATIC)));
   gtk_widget_set_sensitive(GTK_WIDGET(g->deflicker_percentile), FALSE);
   gtk_widget_set_sensitive(GTK_WIDGET(g->deflicker_level), FALSE);
   gtk_widget_set_sensitive(GTK_WIDGET(g->deflicker_mode), FALSE);
@@ -617,9 +633,7 @@ deflicker_process (dt_iop_module_t *self)
         exposure_set_white(self, exposure2white(correction));
       break;
     case DEFLICKER_MODE_AUTOMATIC:
-      //FIXME how to fool DT to reprocess? these do not work
-      //dt_dev_reprocess_all(self->dev);
-      //dt_dev_add_history_item(darktable.develop, self, TRUE);
+      dt_dev_add_history_item(darktable.develop, self, TRUE);
       break;
   }
   if(histogram != NULL) free(histogram);
@@ -667,6 +681,7 @@ deflicker_callback (GtkToggleButton *button, gpointer user_data)
 
   p->deflicker = gtk_toggle_button_get_active(button);
 
+  gtk_widget_set_sensitive(GTK_WIDGET(g->exposure), !(p->deflicker && (p->deflicker_mode == DEFLICKER_MODE_AUTOMATIC)));
   gtk_widget_set_sensitive(GTK_WIDGET(g->deflicker_percentile), p->deflicker);
   gtk_widget_set_sensitive(GTK_WIDGET(g->deflicker_level), p->deflicker);
   gtk_widget_set_sensitive(GTK_WIDGET(g->deflicker_mode), p->deflicker);
@@ -741,8 +756,11 @@ expose (GtkWidget *widget, GdkEventExpose *event, dt_iop_module_t *self)
 {
   if(darktable.gui->reset) return FALSE;
 
+  dt_iop_exposure_params_t *p = (dt_iop_exposure_params_t *)self->params;
+
   // Needed if deflicker is part of auto-applied preset
-  deflicker_process(self);
+  if(p->deflicker && p->deflicker_mode != DEFLICKER_MODE_AUTOMATIC)
+    deflicker_process(self);
 
   if(self->request_color_pick <= 0) return FALSE;
 
@@ -823,7 +841,7 @@ void gui_init(struct dt_iop_module_t *self)
   g_object_set(G_OBJECT(g->deflicker_mode), "tooltip-text", _("deflicker mode"), (char *)NULL);
   dt_bauhaus_combobox_add(g->deflicker_mode, _("thumbnail"));
   dt_bauhaus_combobox_add(g->deflicker_mode, _("source raw data"));
-  //dt_bauhaus_combobox_add(g->deflicker_mode, _("automatic"));       // NOT IMPLEMENTED
+  dt_bauhaus_combobox_add(g->deflicker_mode, _("automatic"));
   dt_bauhaus_combobox_set_default(g->deflicker_mode, 2);
   dt_bauhaus_combobox_set(g->deflicker_mode, p->deflicker_mode);
 
