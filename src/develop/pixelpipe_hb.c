@@ -338,32 +338,10 @@ histogram_collect(dt_iop_module_t *module, const void *pixel, const dt_iop_roi_t
 }
 
 #ifdef HAVE_OPENCL
-// helper to get per module histogram for OpenCL
-//
-// this algorithm is inefficient as hell when it comes to larger images. it's only acceptable
-// as long as we work on small image sizes like in image preview
 static void
 histogram_collect_cl(int devid, dt_iop_module_t *module, cl_mem img, const dt_iop_roi_t *roi,
                      uint32_t **histogram, uint32_t *histogram_max, float *buffer, size_t bufsize)
 {
-  float *tmpbuf = NULL;
-  float *pixel;
-
-  // if buffer is supplied and if size fits let's use it
-  if(buffer && bufsize >= (size_t)roi->width*roi->height*4*sizeof(float))
-    pixel = buffer;
-  else
-    pixel = tmpbuf = dt_alloc_align(64, (size_t)roi->width*roi->height*4*sizeof(float));
-  
-  if(!pixel) return;
-
-  cl_int err = dt_opencl_copy_device_to_host(devid, pixel, img, roi->width, roi->height, 4*sizeof(float));
-  if(err != CL_SUCCESS)
-  {
-    if (tmpbuf) dt_free_align(tmpbuf);
-    return;
-  }
-
   dt_dev_histogram_params_t *histogram_params = (dt_dev_histogram_params_t*)malloc(sizeof(dt_dev_histogram_params_t));
   memcpy(histogram_params, &module->histogram_params, sizeof(dt_dev_histogram_params_t));
 
@@ -373,14 +351,13 @@ histogram_collect_cl(int devid, dt_iop_module_t *module, cl_mem img, const dt_io
 
   const dt_iop_colorspace_type_t cst = dt_iop_module_colorspace(module);
 
-  dt_histogram_helper(histogram_params, cst, pixel, histogram);
+  dt_histogram_helper_cl(devid, histogram_params, cst, img, histogram, buffer, bufsize);
   dt_histogram_max_helper(histogram_params, cst, histogram, histogram_max);
 
   module->histogram_bins_count = histogram_params->bins_count;
   module->histogram_pixels = (roi->width - roi->x) * (roi->height - roi->y);
 
   free(histogram_params);
-  if(tmpbuf) dt_free_align(tmpbuf);
 }
 #endif
 

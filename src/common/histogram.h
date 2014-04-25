@@ -43,6 +43,10 @@ void
 dt_histogram_max_helper(const dt_dev_histogram_params_t *histogram_params,
                         dt_iop_colorspace_type_t cst, uint32_t **histogram, uint32_t *histogram_max);
 
+void
+dt_histogram_helper_cl(int devid, const dt_dev_histogram_params_t *histogram_params,
+                       dt_iop_colorspace_type_t cst, const cl_mem pixel, uint32_t **histogram, float *buffer, size_t bufsize);
+
 #endif
 
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh

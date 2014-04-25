@@ -296,6 +296,44 @@ dt_histogram_helper(const dt_dev_histogram_params_t *histogram_params,
   }
 }
 
+#ifdef HAVE_OPENCL
+void
+histogram_helper_cl(int devid, const dt_dev_histogram_params_t *histogram_params,
+                    dt_iop_colorspace_type_t cst, const cl_mem img, uint32_t **histogram, float *buffer, size_t bufsize)
+{
+  const dt_iop_roi_t *roi = histogram_params->roi;
+  if(cst == iop_cs_rgb)
+  {
+
+  }
+  else
+  {
+    float *tmpbuf = NULL;
+    float *pixel;
+
+    // if buffer is supplied and if size fits let's use it
+    if(buffer && bufsize >= (size_t)roi->width*roi->height*4*sizeof(float))
+      pixel = buffer;
+    else
+      pixel = tmpbuf = dt_alloc_align(64, (size_t)roi->width*roi->height*4*sizeof(float));
+
+    if(!pixel) return;
+
+    cl_int err = dt_opencl_copy_device_to_host(devid, pixel, img, roi->width, roi->height, 4*sizeof(float));
+    if(err != CL_SUCCESS)
+    {
+      if (tmpbuf) dt_free_align(tmpbuf);
+      return;
+    }
+
+    dt_histogram_helper(histogram_params, cst, pixel, histogram);
+
+    dt_free_align(pixel);
+    if(tmpbuf) dt_free_align(tmpbuf);
+  }
+}
+#endif
+
 void
 dt_histogram_max_helper(const dt_dev_histogram_params_t *histogram_params,
                         dt_iop_colorspace_type_t cst, uint32_t **histogram, uint32_t *histogram_max)
