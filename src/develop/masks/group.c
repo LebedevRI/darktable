@@ -188,7 +188,7 @@ static void _inverse_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece
   //we create a new buffer
   int wt = piece->iwidth;
   int ht = piece->iheight;
-  float *buf = malloc((size_t)ht*wt*sizeof(float));
+  float *buf = reallocarray(NULL, (size_t)ht*wt, sizeof(float));
 
   //we fill this buffer
   for (int yy=0; yy<MIN(*posy,ht); yy++)
@@ -277,7 +277,7 @@ static int dt_group_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
   *height = b-t;
 
   //we allocate the buffer
-  *buffer = malloc(sizeof(float)*(r-l)*(b-t));
+  *buffer = reallocarray(NULL, (size_t)(r-l)*(b-t), sizeof(float));
 
   //and we copy each buffer inside, row by row
   for (int i=0; i<nb; i++)

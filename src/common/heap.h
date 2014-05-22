@@ -19,6 +19,8 @@
 #ifndef DT_HEAP_H
 #define DT_HEAP_H
 
+#include "common/darktable.h"
+
 // simple implementation of a heap/priority queue, using uint64_t as key and
 // float values to sort the elements.
 // meant to support scheduling of background jobs with priorities.
@@ -34,8 +36,8 @@ heap_t;
 heap_t *heap_init(uint32_t size)
 {
   heap_t *h = (heap_t *)malloc(sizeof(heap_t));
-  h->keys = (uint64_t *)malloc(sizeof(uint64_t)*size);
-  h->vals = (float    *)malloc(sizeof(float)   *size);
+  h->keys = (uint64_t *)reallocarray(NULL, size, sizeof(uint64_t));
+  h->vals = (float    *)reallocarray(NULL, size, sizeof(float));
   h->size = size;
   h->end = 0;
   return h;

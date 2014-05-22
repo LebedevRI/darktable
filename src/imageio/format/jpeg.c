@@ -426,7 +426,7 @@ int read_image (dt_imageio_module_data_t *jpg_tmp, uint8_t *out)
   }
   (void)jpeg_start_decompress(&(jpg->dinfo));
   JSAMPROW row_pointer[1];
-  row_pointer[0] = (uint8_t *)malloc((size_t)jpg->dinfo.output_width*jpg->dinfo.num_components);
+  row_pointer[0] = (uint8_t *)reallocarray(NULL, jpg->dinfo.num_components, jpg->dinfo.output_width);
   uint8_t *tmp = out;
   while(jpg->dinfo.output_scanline < jpg->dinfo.image_height)
   {

@@ -1196,9 +1196,9 @@ void dt_masks_iop_combo_populate(struct dt_iop_module_t **m)
   dt_iop_gui_blend_data_t *bd = (dt_iop_gui_blend_data_t *)module->blend_data;
 
   //we determine a higher approx of the entry number
-  guint nbe = 5+g_list_length(darktable.develop->forms)+g_list_length(darktable.develop->iop);
+  size_t nbe = 5+g_list_length(darktable.develop->forms)+g_list_length(darktable.develop->iop);
   free(bd->masks_combo_ids);
-  bd->masks_combo_ids = malloc(nbe*sizeof(int));
+  bd->masks_combo_ids = reallocarray(NULL, nbe, sizeof(int));
 
   int *cids = bd->masks_combo_ids;
   GtkWidget *combo = bd->masks_combo;

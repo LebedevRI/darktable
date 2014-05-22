@@ -70,7 +70,7 @@ int init(int argc, char *arg[])
 
   width  = info->current_w;
   height = info->current_h;
-  pixels = (float *)malloc(sizeof(float)*4*width*height);
+  pixels = (float *)reallocarray(NULL, (size_t)4*width*height ,sizeof(float));
   for(int k=0; k<width*height*4; k++) pixels[k] = 1.0f;
 
   if( !info )

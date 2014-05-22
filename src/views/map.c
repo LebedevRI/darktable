@@ -435,7 +435,7 @@ static void _view_map_changed_callback(OsmGpsMap *map, dt_view_t *self)
       uint8_t *buf_decompressed = dt_mipmap_cache_decompress(&buf, scratchmem);
 
       // convert image to pixbuf compatible rgb format
-      uint8_t *rgbbuf = (uint8_t*)malloc(buf.width*buf.height*3);
+      uint8_t *rgbbuf = (uint8_t *)reallocarray(NULL, (size_t)3*buf.width*buf.height, sizeof(uint8_t));
       if(!rgbbuf) goto map_changed_failure;
       for(int i=0; i<buf.height; i++)
         for(int j=0; j<buf.width; j++)
@@ -556,7 +556,7 @@ static gboolean _view_map_motion_notify_callback(GtkWidget *w, GdkEventMotion *e
       uint8_t *buf_decompressed = dt_mipmap_cache_decompress(&buf, scratchmem);
 
       // convert image to pixbuf compatible rgb format
-      uint8_t *rgbbuf = (uint8_t*)malloc(buf.width*buf.height*3);
+      uint8_t *rgbbuf = (uint8_t *)reallocarray(NULL, (size_t)3*buf.width*buf.height, sizeof(uint8_t));
       if(!rgbbuf) goto map_motion_failure;
       for(int i=0; i<buf.height; i++)
         for(int j=0; j<buf.width; j++)

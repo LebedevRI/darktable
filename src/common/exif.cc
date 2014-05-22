@@ -2167,7 +2167,7 @@ int dt_exif_thumbnail(
         y_beg = 0;
         y_end = jpg.height - 1;
       }
-      uint8_t *tmp = (uint8_t *)malloc(sizeof(uint8_t)*jpg.width*jpg.height*4);
+      uint8_t *tmp = (uint8_t *)reallocarray(NULL, (size_t)4*jpg.width*jpg.height, sizeof(uint8_t));
       if(!tmp) return 1;
       if(!dt_imageio_jpeg_decompress(&jpg, tmp))
       {

@@ -778,7 +778,7 @@ int distort_transform(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, floa
                    d->focal, d->aperture,
                    d->distance, d->scale,
                    d->target_geom, d->modify_flags, !d->inverse);
-  float *buf = malloc(2*3*sizeof(float));
+  float *buf = reallocarray(NULL, 2*3, sizeof(float));
 
   for (size_t i=0; i<points_count*2; i+=2)
   {
@@ -807,7 +807,7 @@ int distort_backtransform(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, 
                    d->focal, d->aperture,
                    d->distance, d->scale,
                    d->target_geom, d->modify_flags, d->inverse);
-  float *buf = malloc(2*3*sizeof(float));
+  float *buf = reallocarray(NULL, 2*3, sizeof(float));
 
   for (size_t i=0; i<points_count*2; i+=2)
   {

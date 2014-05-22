@@ -450,7 +450,7 @@ dt_iop_area_expose(GtkWidget *widget, GdkEventExpose *event, dt_iop_module_t *se
 
   /* Create an image initialized with the ring colors */
   gint stride = cairo_format_stride_for_width(CAIRO_FORMAT_RGB24, width);
-  guint32* buf = (guint32*)malloc(sizeof(guint32) * height * stride / 4);
+  guint32* buf = (guint32 *)reallocarray(NULL, (size_t)height*stride/4, sizeof(guint32));
 
   for(int y = 0; y < height; y++)
   {

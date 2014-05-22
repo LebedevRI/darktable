@@ -453,17 +453,17 @@ void gui_init(dt_lib_module_t *self)
     dt_conf_get_int("ui_last/colorpicker_display_samples");
   darktable.lib->proxy.colorpicker.live_samples = NULL;
   darktable.lib->proxy.colorpicker.picked_color_rgb_mean =
-    (uint8_t*)malloc(sizeof(uint8_t) * 3);
+    (uint8_t*)reallocarray(NULL, 3, sizeof(uint8_t));
   darktable.lib->proxy.colorpicker.picked_color_rgb_min =
-    (uint8_t*)malloc(sizeof(uint8_t) * 3);
+    (uint8_t*)reallocarray(NULL, 3, sizeof(uint8_t));
   darktable.lib->proxy.colorpicker.picked_color_rgb_max =
-    (uint8_t*)malloc(sizeof(uint8_t) * 3);
+    (uint8_t*)reallocarray(NULL, 3, sizeof(uint8_t));
   darktable.lib->proxy.colorpicker.picked_color_lab_mean =
-    (float*)malloc(sizeof(float) * 3);
+    (float*)reallocarray(NULL, 3, sizeof(float));
   darktable.lib->proxy.colorpicker.picked_color_lab_min =
-    (float*)malloc(sizeof(float) * 3);
+    (float*)reallocarray(NULL, 3, sizeof(float));
   darktable.lib->proxy.colorpicker.picked_color_lab_max =
-    (float*)malloc(sizeof(float) * 3);
+    (float*)reallocarray(NULL, 3, sizeof(float));
   for(i = 0; i < 3; i++)
     darktable.lib->proxy.colorpicker.picked_color_rgb_mean[i]
     = darktable.lib->proxy.colorpicker.picked_color_rgb_min[i]

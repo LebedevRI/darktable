@@ -446,7 +446,7 @@ process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void *ivoi
     if(g->buffer)
       free (g->buffer);
 
-    g->buffer = malloc ((size_t)width*height*ch*sizeof(float));
+    g->buffer = reallocarray(NULL, (size_t)width*height*ch, sizeof(float));
     g->width = width;
     g->height = height;
     g->ch = ch;
@@ -577,7 +577,7 @@ process_cl (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_mem 
     if(g->buffer)
       free (g->buffer);
 
-    g->buffer = malloc (width*height*ch*sizeof(float));
+    g->buffer = reallocarray(NULL, (size_t)width*height*ch, sizeof(float));
     g->width = width;
     g->height = height;
     g->ch = ch;
@@ -973,7 +973,7 @@ gui_post_expose (struct dt_iop_module_t *self, cairo_t *cr, int32_t fwidth, int3
   const int width = g->width;
   const int height = g->height;
   const int ch = g->ch;
-  float *buffer = malloc (width*height*ch*sizeof(float));
+  float *buffer = reallocarray(NULL, (size_t)width*height*ch, sizeof(float));
   if(!buffer)
   {
     dt_pthread_mutex_unlock(&g->lock);

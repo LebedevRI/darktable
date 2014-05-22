@@ -2572,7 +2572,7 @@ static int dt_path_get_mask_roi(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t 
   if(path_in_roi)
   {
     //second copy of path which we can modify when cropping to roi
-    cpoints = malloc(2*points_count*sizeof(float));
+    cpoints = reallocarray(NULL, (size_t)2*points_count, sizeof(float));
     if (cpoints == NULL)
     {
       free(points);

@@ -83,7 +83,7 @@ void process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void 
   const int ch = piece->colors;
 
   // PASS1: Get a luminance map of image...
-  float *luminance=(float *)malloc(((size_t)roi_out->width*roi_out->height)*sizeof(float));
+  float *luminance = (float *)reallocarray(NULL, (size_t)roi_out->width*roi_out->height, sizeof(float));
   //double lsmax=0.0,lsmin=1.0;
 #ifdef _OPENMP
   #pragma omp parallel for default(none) schedule(static) shared(luminance,roi_in,roi_out,ivoid)

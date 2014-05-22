@@ -340,7 +340,7 @@ int RGBE_WritePixels_RLE(FILE *fp, float *data, int scanline_width,
   if ((scanline_width < 8)||(scanline_width > 0x7fff))
     /* run length encoding is not allowed so write flat*/
     return RGBE_WritePixels(fp,data,scanline_width*num_scanlines);
-  buffer = (unsigned char *)malloc(sizeof(unsigned char)*4*scanline_width);
+  buffer = (unsigned char *)reallocarray(NULL, (size_t)4*scanline_width, sizeof(unsigned char);
   if (buffer == NULL)
     /* no buffer space so write flat */
     return RGBE_WritePixels(fp,data,scanline_width*num_scanlines);
@@ -416,7 +416,7 @@ int RGBE_ReadPixels_RLE(FILE *fp, float *data, int scanline_width,
     }
     if (scanline_buffer == NULL)
       scanline_buffer = (unsigned char *)
-                        malloc(sizeof(unsigned char)*4*scanline_width);
+                        reallocarray(NULL, (size_t)4*scanline_width, sizeof(unsigned char));
     if (scanline_buffer == NULL)
       return rgbe_error(rgbe_memory_error,"unable to allocate buffer space");
 

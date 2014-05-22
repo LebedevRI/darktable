@@ -169,7 +169,7 @@ static inline dt_draw_curve_t *dt_draw_curve_new(const float min, const float ma
   dt_draw_curve_t *c = (dt_draw_curve_t *)malloc(sizeof(dt_draw_curve_t));
   c->csample.m_samplingRes = 0x10000;
   c->csample.m_outputRes = 0x10000;
-  c->csample.m_Samples = (uint16_t *)malloc(sizeof(uint16_t)*0x10000);
+  c->csample.m_Samples = (uint16_t *)reallocarray(NULL, 0x10000ul, sizeof(uint16_t));
 
   c->c.m_spline_type = type;
   c->c.m_numAnchors = 0;

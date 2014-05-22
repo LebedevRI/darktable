@@ -342,7 +342,7 @@ static gboolean _lib_histogram_expose_callback(GtkWidget *widget, GdkEventExpose
     if(dev->histogram_type == DT_DEV_HISTOGRAM_WAVEFORM)
     {
       // make the color channel selector work:
-      uint8_t *buf = (uint8_t*)malloc(sizeof(uint8_t) * height * stride);
+      uint8_t *buf = (uint8_t *)reallocarray(NULL, (size_t)height*stride, sizeof(uint8_t));
       uint8_t mask[3] = {d->blue, d->green, d->red};
       memcpy(buf, dev->histogram_waveform, sizeof(uint8_t) * height * stride);
       for(int y = 0; y < height; y++)

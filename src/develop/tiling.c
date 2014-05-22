@@ -211,17 +211,17 @@ _simplex(double (*objfunc) (double[], void*[]), double start[], int n, double EP
   /* dynamically allocate arrays */
 
   /* allocate the rows of the arrays */
-  v = (double **) malloc ((n + 1) * sizeof (double *));
-  f = (double *) malloc ((n + 1) * sizeof (double));
-  vr = (double *) malloc (n * sizeof (double));
-  ve = (double *) malloc (n * sizeof (double));
-  vc = (double *) malloc (n * sizeof (double));
-  vm = (double *) malloc (n * sizeof (double));
+  v = (double **)reallocarray(NULL, n+1, sizeof(double *));
+  f = (double *)reallocarray(NULL, n+1, sizeof(double));
+  vr = (double *)reallocarray(NULL, n, sizeof(double));
+  ve = (double *)reallocarray(NULL, n, sizeof(double));
+  vc = (double *)reallocarray(NULL, n, sizeof(double));
+  vm = (double *)reallocarray(NULL, n, sizeof(double));
 
   /* allocate the columns of the arrays */
   for (i = 0; i <= n; i++)
   {
-    v[i] = (double *) malloc (n * sizeof (double));
+    v[i] = (double *)reallocarray(NULL, n, sizeof(double));
   }
 
   /* create the initial simplex */

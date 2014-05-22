@@ -1223,9 +1223,9 @@ static int dt_brush_events_button_pressed(struct dt_iop_module_t *module, float 
       float wd = darktable.develop->preview_pipe->backbuf_width;
       float ht = darktable.develop->preview_pipe->backbuf_height;
 
-      if(!gui->guipoints) gui->guipoints = malloc(200000*sizeof(float));
+      if(!gui->guipoints) gui->guipoints = reallocarray(NULL, 200000ul, sizeof(float));
       if(!gui->guipoints) return 1;
-      if(!gui->guipoints_payload) gui->guipoints_payload = malloc(400000*sizeof(float));
+      if(!gui->guipoints_payload) gui->guipoints_payload = reallocarray(NULL, 400000ul, sizeof(float));
       if(!gui->guipoints_payload) return 1;
       gui->guipoints[0] = pzx*wd;
       gui->guipoints[1] = pzy*ht;

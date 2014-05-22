@@ -168,8 +168,8 @@ void dt_opencl_init(dt_opencl_t *cl, const int argc, char *argv[])
   for(int n=0; n < num_platforms; n++) num_devices += all_num_devices[n];
 
   // create the device list
-  cl->dev = (dt_opencl_device_t *)malloc(sizeof(dt_opencl_device_t)*num_devices);
-  cl_device_id *devices = (cl_device_id *)malloc(sizeof(cl_device_id)*num_devices);
+  cl->dev = (dt_opencl_device_t *)reallocarray(NULL, num_devices, sizeof(dt_opencl_device_t));
+  cl_device_id *devices = (cl_device_id *)reallocarray(NULL, num_devices, sizeof(cl_device_id));
 
   cl_device_id *devs = devices;
   for(int n=0; n < num_platforms; n++)
@@ -415,10 +415,10 @@ void dt_opencl_init(dt_opencl_t *cl, const int argc, char *argv[])
     cl->num_devs = dev;
     cl->inited = 1;
     cl->enabled = dt_conf_get_bool("opencl");
-    cl->dev_priority_image = (int *)malloc(sizeof(int)*(dev+1));
-    cl->dev_priority_preview = (int *)malloc(sizeof(int)*(dev+1));
-    cl->dev_priority_export = (int *)malloc(sizeof(int)*(dev+1));
-    cl->dev_priority_thumbnail = (int *)malloc(sizeof(int)*(dev+1));
+    cl->dev_priority_image = (int *)reallocarray(NULL, dev+1, sizeof(int));
+    cl->dev_priority_preview = (int *)reallocarray(NULL, dev+1, sizeof(int));
+    cl->dev_priority_export = (int *)reallocarray(NULL, dev+1, sizeof(int));
+    cl->dev_priority_thumbnail = (int *)reallocarray(NULL, dev+1, sizeof(int));
 
     // only check successful malloc in debug mode; darktable will crash anyhow sooner or later if mallocs that small would fail
     assert(cl->dev_priority_image != NULL && cl->dev_priority_preview != NULL && cl->dev_priority_export != NULL && cl->dev_priority_thumbnail != NULL);
@@ -1004,7 +1004,7 @@ int dt_opencl_build_program(const int dev, const int prog, const char* binname, 
   char *build_log;
   size_t ret_val_size;
   (cl->dlocl->symbols->dt_clGetProgramBuildInfo)(program, cl->dev[dev].devid, CL_PROGRAM_BUILD_LOG, 0, NULL, &ret_val_size);
-  build_log = (char *)malloc(sizeof(char)*(ret_val_size+1));
+  build_log = (char *)reallocarray(NULL, ret_val_size+1, sizeof(char));
   (cl->dlocl->symbols->dt_clGetProgramBuildInfo)(program, cl->dev[dev].devid, CL_PROGRAM_BUILD_LOG, ret_val_size, build_log, NULL);
 
   build_log[ret_val_size] = '\0';

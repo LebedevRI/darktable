@@ -411,7 +411,7 @@ dt_mipmap_cache_deserialize(dt_mipmap_cache_t *cache)
   }
 
   if(cache->compression_type) blob = NULL;
-  else blob = malloc(sizeof(uint32_t)*file_width[mip]*file_height[mip]);
+  else blob = reallocarray(NULL, (size_t)file_width[mip]*file_height[mip], sizeof(uint32_t));
 
   while(!feof(f))
   {
@@ -1284,7 +1284,7 @@ _init_8(
       dt_imageio_jpeg_t jpg;
       if(!dt_imageio_jpeg_read_header(filename, &jpg))
       {
-        uint8_t *tmp = (uint8_t *)malloc(sizeof(uint8_t)*jpg.width*jpg.height*4);
+        uint8_t *tmp = (uint8_t *)reallocarray(NULL, (size_t)4*jpg.width*jpg.height, sizeof(uint8_t));
         if(!dt_imageio_jpeg_read(&jpg, tmp))
         {
           // scale to fit

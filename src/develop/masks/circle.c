@@ -681,7 +681,7 @@ static int dt_circle_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *p
 
   //we create a buffer of points with all points in the area
   int w = *width, h = *height;
-  float *points = malloc(w*h*2*sizeof(float));
+  float *points = reallocarray(NULL, (size_t)2*w*h, sizeof(float));
   for (int i=0; i<h; i++)
     for (int j=0; j<w; j++)
     {
@@ -750,7 +750,7 @@ static int dt_circle_get_mask_roi(dt_iop_module_t *module, dt_dev_pixelpipe_iop_
   const int mw = (w + mesh - 1) / mesh + 1;
   const int mh = (h + mesh - 1) / mesh + 1;
 
-  float *points = malloc((size_t)mw*mh*2*sizeof(float));
+  float *points = reallocarray(NULL, (size_t)2*mw*mh, sizeof(float));
   if(points == NULL) return 0;
 
 #ifdef _OPENMP

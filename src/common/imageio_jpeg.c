@@ -109,7 +109,7 @@ int dt_imageio_jpeg_decompress(dt_imageio_jpeg_t *jpg, uint8_t *out)
   }
   (void)jpeg_start_decompress(&(jpg->dinfo));
   JSAMPROW row_pointer[1];
-  row_pointer[0] = (uint8_t *)malloc(jpg->dinfo.output_width*jpg->dinfo.num_components);
+  row_pointer[0] = (uint8_t *)reallocarray(NULL, jpg->dinfo.num_components, jpg->dinfo.output_width);
   uint8_t *tmp = out;
   while(jpg->dinfo.output_scanline < jpg->dinfo.image_height)
   {
@@ -514,7 +514,7 @@ int dt_imageio_jpeg_read(dt_imageio_jpeg_t *jpg, uint8_t *out)
   }
   (void)jpeg_start_decompress(&(jpg->dinfo));
   JSAMPROW row_pointer[1];
-  row_pointer[0] = (uint8_t *)malloc(jpg->dinfo.output_width*jpg->dinfo.num_components);
+  row_pointer[0] = (uint8_t *)reallocarray(NULL, jpg->dinfo.num_components, jpg->dinfo.output_width);
   uint8_t *tmp = out;
   while(jpg->dinfo.output_scanline < jpg->dinfo.image_height)
   {
@@ -567,7 +567,7 @@ dt_imageio_retval_t dt_imageio_open_jpeg(dt_image_t *img,  const char *filename,
   img->height = (orientation & 4) ? jpg.width  : jpg.height;
 
 
-  uint8_t *tmp = (uint8_t *)malloc(sizeof(uint8_t)*jpg.width*jpg.height*4);
+  uint8_t *tmp = (uint8_t *)reallocarray(NULL, (size_t)4*jpg.width*jpg.height, sizeof(uint8_t));
   if(dt_imageio_jpeg_read(&jpg, tmp))
   {
     free(tmp);
