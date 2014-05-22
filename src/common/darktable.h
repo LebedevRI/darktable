@@ -236,6 +236,10 @@ void *reallocarray(void *ptr, size_t nmemb, size_t size);
 
 void *dt_alloc_align(size_t alignment, size_t size);
 void *dt_calloc_align(size_t alignment, size_t nmemb, size_t size);
+
+//WARNING: do not call with non-NULL ptr !!! the only reason why i reimplemented this function is because it checks for overflow
+void *dt_reallocarray_align(size_t alignment, void *ptr, size_t nmemb, size_t size);
+
 #ifdef __WIN32__
   void dt_free_align(void *mem);
 #else

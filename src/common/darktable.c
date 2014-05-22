@@ -990,6 +990,26 @@ void *dt_calloc_align(size_t alignment, size_t nmemb, size_t size)
   return(p);
 }
 
+//WARNING: do not call with non-NULL ptr !!! the only reason why i reimplemented this function is because it checks for overflow
+void *dt_reallocarray_align(size_t alignment, void *ptr, size_t nmemb, size_t size)
+{
+  if ((nmemb >= MUL_NO_OVERFLOW || size >= MUL_NO_OVERFLOW) &&
+      nmemb > 0 && SIZE_MAX / nmemb < size)
+  {
+    errno = ENOMEM;
+    return NULL;
+  }
+
+  if(ptr == NULL)
+  {
+    return dt_alloc_align(alignment, size * nmemb);
+  }
+  else
+  {
+    return NULL;
+  }
+}
+
 #ifdef __WIN32__
 void dt_free_align(void *mem)
 {
