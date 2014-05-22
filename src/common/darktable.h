@@ -54,6 +54,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <lua/lua.h>
+#include <stdlib.h>
 
 #ifdef __APPLE__
 #include <mach/mach.h>
@@ -228,13 +229,20 @@ void dt_cleanup();
 void dt_print(dt_debug_thread_t thread, const char *msg, ...);
 void dt_gettime_t(char *datetime, size_t datetime_len, time_t t);
 void dt_gettime(char *datetime, size_t datetime_len);
+
+#if !defined(OpenBSD)
+void *reallocarray(void *ptr, size_t nmemb, size_t size);
+#endif
+
 void *dt_alloc_align(size_t alignment, size_t size);
 #ifdef __WIN32__
   void dt_free_align(void *mem);
 #else
   #define dt_free_align(A) free(A)
 #endif
+
 gboolean dt_is_aligned(const void *pointer, size_t byte_count);
+
 int dt_capabilities_check(char *capability);
 void dt_capabilities_add(char *capability);
 void dt_capabilities_remove(char *capability);

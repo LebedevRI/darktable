@@ -68,6 +68,7 @@
 #include <sys/param.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <errno.h>
 #ifndef __WIN32__
   #include <sys/wait.h>
 #endif
@@ -947,6 +948,18 @@ void dt_gettime(char *datetime, size_t datetime_len)
 {
   dt_gettime_t(datetime, datetime_len, time(NULL));
 }
+
+#if !defined(OpenBSD)
+#include "external/openbsd-reallocarray/reallocarray.c"
+#endif
+
+#if !defined(OpenBSD) || !defined(MUL_NO_OVERFLOW)
+/*
+ * This is sqrt(SIZE_MAX+1), as s1*s2 <= SIZE_MAX
+ * if both s1 < MUL_NO_OVERFLOW and s2 < MUL_NO_OVERFLOW
+ */
+#define MUL_NO_OVERFLOW (1UL << (sizeof(size_t) * 4))
+#endif
 
 void *dt_alloc_align(size_t alignment, size_t size)
 {
