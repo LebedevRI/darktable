@@ -235,6 +235,7 @@ void *reallocarray(void *ptr, size_t nmemb, size_t size);
 #endif
 
 void *dt_alloc_align(size_t alignment, size_t size);
+void *dt_calloc_align(size_t alignment, size_t nmemb, size_t size);
 #ifdef __WIN32__
   void dt_free_align(void *mem);
 #else

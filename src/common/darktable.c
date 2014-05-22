@@ -974,6 +974,22 @@ void *dt_alloc_align(size_t alignment, size_t size)
 #endif
 }
 
+void *dt_calloc_align(size_t alignment, size_t nmemb, size_t size)
+{
+  void *p = NULL;
+
+  if ((nmemb >= MUL_NO_OVERFLOW || size >= MUL_NO_OVERFLOW) &&
+      nmemb > 0 && SIZE_MAX / nmemb < size)
+  {
+    errno = ENOMEM;
+    return NULL;
+  }
+  p = dt_alloc_align(alignment, size * nmemb);
+  if (p)
+    memset(p, 0, size * nmemb);
+  return(p);
+}
+
 #ifdef __WIN32__
 void dt_free_align(void *mem)
 {
