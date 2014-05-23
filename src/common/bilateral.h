@@ -113,9 +113,8 @@ dt_bilateral_init(
   b->height = height;
   b->sigma_s = MAX(height/(b->size_y-1.0f), width/(b->size_x-1.0f));
   b->sigma_r = 100.0f/(b->size_z-1.0f);
-  b->buf = dt_alloc_align(16, b->size_x*b->size_y*b->size_z*sizeof(float));
+  b->buf = dt_calloc_align(16, b->size_x*b->size_y*b->size_z, sizeof(float));
 
-  memset(b->buf, 0, b->size_x*b->size_y*b->size_z*sizeof(float));
 #if 0
   fprintf(stderr, "[bilateral] created grid [%d %d %d]"
           " with sigma (%f %f) (%f %f)\n", b->size_x, b->size_y, b->size_z,
