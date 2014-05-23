@@ -114,7 +114,7 @@ dt_imageio_open_gm(
     goto error;
   }
 
-  buf = (float *)dt_alloc_align(16, width*img->bpp);
+  buf = (float *)dt_reallocarray_align(16, NULL, width, img->bpp);
   if(!buf) goto error;
 
   const int ht2 = orientation & 4 ? img->width  : img->height; // pretend unrotated, rotate in write_pos

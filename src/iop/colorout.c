@@ -482,7 +482,7 @@ process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void *ivoi
       {
         cmsDoTransform(d->xform, in, out, roi_out->width);
       } else {
-        void *rgb = dt_alloc_align(16, 4*sizeof(float)*roi_out->width);
+        void *rgb = dt_reallocarray_align(16, NULL, (size_t)4*roi_out->width, sizeof(float));
         cmsDoTransform(d->xform, in, rgb, roi_out->width);
         float *rgbptr = (float *)rgb;
         for (int j=0; j<roi_out->width; j++,rgbptr+=4,out+=4)

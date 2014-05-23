@@ -537,8 +537,8 @@ void process_wavelets(
   float *tmp = NULL;
   float *buf1 = NULL, *buf2 = NULL;
   for(int k=0; k<max_scale; k++)
-    buf[k] = dt_alloc_align(64, (size_t)4*sizeof(float)*roi_in->width*roi_in->height);
-  tmp = dt_alloc_align(64, (size_t)4*sizeof(float)*roi_in->width*roi_in->height);
+    buf[k] = dt_reallocarray_align(64, NULL, (size_t)4*roi_in->width*roi_in->height, sizeof(float));
+  tmp = dt_reallocarray_align(64, NULL, (size_t)4*roi_in->width*roi_in->height, sizeof(float));
 
   const float wb[3] =
   {
@@ -687,10 +687,10 @@ void process_nlmeans(
 
   // P == 0 : this will degenerate to a (fast) bilateral filter.
 
-  float *Sa = dt_alloc_align(64, (size_t)sizeof(float)*roi_out->width*dt_get_num_threads());
+  float *Sa = dt_reallocarray_align(64, NULL, (size_t)roi_out->width*dt_get_num_threads(), sizeof(float));
   // we want to sum up weights in col[3], so need to init to 0:
   memset(ovoid, 0x0, (size_t)sizeof(float)*roi_out->width*roi_out->height*4);
-  float *in = dt_alloc_align(64, (size_t)4*sizeof(float)*roi_in->width*roi_in->height);
+  float *in = dt_reallocarray_align(64, NULL, (size_t)4*roi_in->width*roi_in->height, sizeof(float));
 
   const float wb[3] =
   {

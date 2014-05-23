@@ -37,7 +37,7 @@ int write_image (dt_imageio_module_data_t *data, const char *filename, const voi
   {
     //INFO: per-line fwrite call seems to perform best. LebedevRI, 18.04.2014
     (void)fprintf(f, "PF\n%d %d\n-1.0\n", pfm->width, pfm->height);
-    void *buf_line = dt_alloc_align(16, 3*sizeof(float)*pfm->width);
+    void *buf_line = dt_reallocarray_align(16, NULL, 3*pfm->width, sizeof(float));
     for(int j=0; j<pfm->height; j++)
     {
       //NOTE: pfm has rows in reverse order

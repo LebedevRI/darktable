@@ -687,7 +687,7 @@ void dt_mipmap_cache_init(dt_mipmap_cache_t *cache)
     dt_cache_init(&cache->scratchmem.cache, parallel, parallel, 64, 0.9f*parallel*wd*ht*sizeof(uint32_t));
     // might have been rounded to power of two:
     const int cnt = dt_cache_capacity(&cache->scratchmem.cache);
-    cache->scratchmem.buf = dt_alloc_align(64, cnt * wd*ht*sizeof(uint32_t));
+    cache->scratchmem.buf = dt_reallocarray_align(64, NULL, cnt * wd*ht, sizeof(uint32_t));
     dt_cache_static_allocation(&cache->scratchmem.cache, (uint8_t *)cache->scratchmem.buf, wd*ht*sizeof(uint32_t));
     dt_cache_set_allocate_callback(&cache->scratchmem.cache,
                                    scratchmem_allocate, &cache->scratchmem);
@@ -729,7 +729,7 @@ void dt_mipmap_cache_init(dt_mipmap_cache_t *cache)
     thumbnails = dt_cache_capacity(&cache->mip[k].cache);
     max_mem -= thumbnails * cache->mip[k].buffer_size;
     // dt_print(DT_DEBUG_CACHE, "[mipmap mem] %4.02f left\n", max_mem/(1024.0*1024.0));
-    cache->mip[k].buf = dt_alloc_align(64, thumbnails * cache->mip[k].buffer_size);
+    cache->mip[k].buf = dt_reallocarray_align(64, NULL, thumbnails, cache->mip[k].buffer_size);
     dt_cache_static_allocation(&cache->mip[k].cache, (uint8_t *)cache->mip[k].buf, cache->mip[k].buffer_size);
     dt_cache_set_allocate_callback(&cache->mip[k].cache,
                                    dt_mipmap_cache_allocate, &cache->mip[k]);
@@ -1355,7 +1355,7 @@ dt_mipmap_cache_alloc_scratchmem(
 
   if(cache->compression_type)
   {
-    return dt_alloc_align(64, size * 4 * sizeof(uint8_t));
+    return dt_reallocarray_align(64, NULL, size * 4, sizeof(uint8_t));
   }
   else // no compression, no buffer:
     return NULL;

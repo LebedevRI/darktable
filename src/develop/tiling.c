@@ -700,13 +700,13 @@ _default_process_tiling_ptp (struct dt_iop_module_t *self, struct dt_dev_pixelpi
   dt_print(DT_DEBUG_DEV, "[default_process_tiling_ptp] (%d x %d) tiles with max dimensions %d x %d and overlap %d\n", tiles_x, tiles_y, width, height, overlap);
 
   /* reserve input and output buffers for tiles */
-  input = dt_alloc_align(64, (size_t)width*height*in_bpp);
+  input = dt_reallocarray_align(64, NULL, (size_t)width*height, in_bpp);
   if(input == NULL)
   {
     dt_print(DT_DEBUG_DEV, "[default_process_tiling_ptp] could not alloc input buffer for module '%s'\n", self->op);
     goto error;
   }
-  output = dt_alloc_align(64, (size_t)width*height*out_bpp);
+  output = dt_reallocarray_align(64, NULL, (size_t)width*height, out_bpp);
   if(output == NULL)
   {
     dt_print(DT_DEBUG_DEV, "[default_process_tiling_ptp] could not alloc output buffer for module '%s'\n", self->op);
@@ -1042,13 +1042,13 @@ _default_process_tiling_roi (struct dt_iop_module_t *self, struct dt_dev_pixelpi
 
 
       /* prepare input tile buffer */
-      input = dt_alloc_align(64, (size_t)iroi_full.width*iroi_full.height*in_bpp);
+      input = dt_reallocarray_align(64, NULL, (size_t)iroi_full.width*iroi_full.height, in_bpp);
       if(input == NULL)
       {
         dt_print(DT_DEBUG_DEV, "[default_process_tiling_roi] could not alloc input buffer for module '%s'\n", self->op);
         goto error;
       }
-      output = dt_alloc_align(64, (size_t)oroi_full.width*oroi_full.height*out_bpp);
+      output = dt_reallocarray_align(64, NULL, (size_t)oroi_full.width*oroi_full.height, out_bpp);
       if(output == NULL)
       {
         dt_print(DT_DEBUG_DEV, "[default_process_tiling_roi] could not alloc output buffer for module '%s'\n", self->op);

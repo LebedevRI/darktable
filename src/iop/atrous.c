@@ -460,7 +460,7 @@ process (struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *piece, voi
   const int width = roi_out->width;
   const int height = roi_out->height;
 
-  tmp = (float *)dt_alloc_align(64, (size_t)sizeof(float)*4*width*height);
+  tmp = (float *)dt_reallocarray_align(64, NULL, (size_t)4*width*height, sizeof(float));
   if(tmp == NULL)
   {
     fprintf(stderr, "[atrous] failed to allocate coarse buffer!\n");
@@ -469,7 +469,7 @@ process (struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *piece, voi
 
   for(int k=0; k<max_scale; k++)
   {
-    detail[k] = (float *)dt_alloc_align(64, (size_t)sizeof(float)*4*width*height);
+    detail[k] = (float *)dt_reallocarray_align(64, NULL, (size_t)4*width*height, sizeof(float));
     if(detail[k] == NULL)
     {
       fprintf(stderr, "[atrous] failed to allocate one of the detail buffers!\n");

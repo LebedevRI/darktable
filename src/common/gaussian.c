@@ -138,7 +138,7 @@ dt_gaussian_init(
     g->min[k] = min[k];
   }
 
-  g->buf = dt_alloc_align(64, (size_t)width*height*channels*sizeof(float));
+  g->buf = dt_reallocarray_align(64, NULL, (size_t)width*height*channels, sizeof(float));
   if(!g->buf) goto error;
 
   return g;

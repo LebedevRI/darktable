@@ -794,7 +794,7 @@ int dt_imageio_export_with_flags(
     const double scale = fminf(scalex, scaley);
     processed_width  = scale*pipe.processed_width  + .5f;
     processed_height = scale*pipe.processed_height + .5f;
-    moutbuf = (uint8_t *)dt_alloc_align(64, (size_t)sizeof(float)*processed_width*processed_height*4);
+    moutbuf = (uint8_t *)dt_reallocarray_align(64, NULL, (size_t)4*processed_width*processed_height, sizeof(float));
     outbuf = moutbuf;
     // now downscale into the new buffer:
     dt_iop_roi_t roi_in, roi_out;

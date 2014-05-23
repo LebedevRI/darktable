@@ -188,7 +188,7 @@ dt_imageio_open_png(
     return DT_IMAGEIO_CACHE_FULL;
   }
 
-  buf = dt_alloc_align(16, (size_t)width*height*3*(bpp < 16 ? 1 : 2));
+  buf = dt_reallocarray_align(16, NULL, (size_t)3*width*height, (bpp < 16 ? 1 : 2));
   if(!buf)
   {
     fclose(image.f);

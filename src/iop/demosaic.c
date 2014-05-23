@@ -451,7 +451,7 @@ demosaic_ppg(float *out, const float *in, dt_iop_roi_t *roi_out, const dt_iop_ro
   // if(median) fbdd_green(out, in, roi_out, roi_in, filters);
   if(median)
   {
-    float *med_in = (float *)dt_alloc_align(16, (size_t)roi_in->height*roi_in->width*sizeof(float));
+    float *med_in = (float *)dt_reallocarray_align(16, NULL, (size_t)roi_in->height*roi_in->width, sizeof(float));
     pre_median(med_in, in, roi_in, filters, 1, thrs);
     in = med_in;
   }
@@ -678,7 +678,7 @@ process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void *i, v
     // green eq:
     if(data->green_eq != DT_IOP_GREEN_EQ_NO)
     {
-      float *in = (float *)dt_alloc_align(16, (size_t)roi_in->height*roi_in->width*sizeof(float));
+      float *in = (float *)dt_reallocarray_align(16, NULL, (size_t)roi_in->height*roi_in->width, sizeof(float));
       switch(data->green_eq)
       {
         case DT_IOP_GREEN_EQ_FULL:
@@ -721,10 +721,10 @@ process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void *i, v
     roo.height = roi_out->height / roi_out->scale;
     roo.scale = 1.0f;
 
-    float *tmp = (float *)dt_alloc_align(16, (size_t)roo.width*roo.height*4*sizeof(float));
+    float *tmp = (float *)dt_reallocarray_align(16, NULL, (size_t)4*roo.width*roo.height, sizeof(float));
     if(data->green_eq != DT_IOP_GREEN_EQ_NO)
     {
-      float *in = (float *)dt_alloc_align(16, (size_t)roi_in->height*roi_in->width*sizeof(float));
+      float *in = (float *)dt_reallocarray_align(16, NULL, (size_t)roi_in->height*roi_in->width, sizeof(float));
       switch(data->green_eq)
       {
         case DT_IOP_GREEN_EQ_FULL:
@@ -768,7 +768,7 @@ process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void *i, v
     const float clip = fminf(piece->pipe->processed_maximum[0], fminf(piece->pipe->processed_maximum[1], piece->pipe->processed_maximum[2]));
     if(piece->pipe->type == DT_DEV_PIXELPIPE_EXPORT && data->median_thrs > 0.0f)
     {
-      float *tmp = (float *)dt_alloc_align(16, (size_t)sizeof(float)*roi_in->width*roi_in->height);
+      float *tmp = (float *)dt_reallocarray_align(16, NULL, (size_t)roi_in->width*roi_in->height, sizeof(float));
       pre_median_b(tmp, pixels, roi_in, data->filters, 1, data->median_thrs);
       dt_iop_clip_and_zoom_demosaic_half_size_f((float *)o, tmp, &roo, &roi, roo.width, roi.width, data->filters, clip);
       dt_free_align(tmp);

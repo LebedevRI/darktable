@@ -353,7 +353,7 @@ histogram_collect_cl(int devid, dt_iop_module_t *module, cl_mem img, const dt_io
   if(buffer && bufsize >= (size_t)roi->width*roi->height*4*sizeof(float))
     pixel = buffer;
   else
-    pixel = tmpbuf = dt_alloc_align(64, (size_t)roi->width*roi->height*4*sizeof(float));
+    pixel = tmpbuf = dt_reallocarray_align(64, NULL, (size_t)4*roi->width*roi->height, sizeof(float));
   
   if(!pixel) return;
 
@@ -589,7 +589,7 @@ pixelpipe_picker_cl(int devid, dt_iop_module_t *module, cl_mem img, const dt_iop
   if(buffer && bufsize >= size*4*sizeof(float))
     pixel = buffer;
   else
-    pixel = tmpbuf = dt_alloc_align(64, size*4*sizeof(float));
+    pixel = tmpbuf = dt_reallocarray_align(64, NULL, (size_t)4*size, sizeof(float));
 
   if(pixel == NULL) return;
 

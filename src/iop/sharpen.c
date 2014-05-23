@@ -292,7 +292,7 @@ void process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void 
     return;
   }
 
-  float *const tmp = dt_alloc_align(16, (size_t)sizeof(float)*roi_out->width*roi_out->height);
+  float *const tmp = dt_reallocarray_align(16, NULL, (size_t)roi_out->width*roi_out->height, sizeof(float));
   if (tmp == NULL)
   {
     fprintf(stderr,"[sharpen] failed to allocate temporary buffer\n");

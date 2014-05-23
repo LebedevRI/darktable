@@ -363,8 +363,8 @@ dt_cache_init(dt_cache_t *cache, const int32_t capacity, const int32_t num_threa
 
   // fprintf(stderr, "[cache init] segment shift %u segment mask %u\n", cache->segment_shift, cache->segment_mask);
 
-  cache->segments = (dt_cache_segment_t *)dt_alloc_align(64, (cache->segment_mask + 1) * sizeof(dt_cache_segment_t));
-  cache->table    = (dt_cache_bucket_t  *)dt_alloc_align(64, num_buckets * sizeof(dt_cache_bucket_t));
+  cache->segments = (dt_cache_segment_t *)dt_reallocarray_align(64, NULL, cache->segment_mask+1, sizeof(dt_cache_segment_t));
+  cache->table    = (dt_cache_bucket_t  *)dt_reallocarray_align(64, NULL, num_buckets, sizeof(dt_cache_bucket_t));
 
   cache->cost = 0;
   cache->cost_quota = cost_quota;

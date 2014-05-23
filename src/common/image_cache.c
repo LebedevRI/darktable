@@ -153,7 +153,7 @@ dt_image_cache_init(dt_image_cache_t *cache)
 
   // might have been rounded to power of two:
   num = dt_cache_capacity(&cache->cache);
-  cache->images = dt_alloc_align(64, sizeof(dt_image_t)*num);
+  cache->images = dt_reallocarray_align(64, NULL, num, sizeof(dt_image_t));
   memset(cache->images, 0, sizeof(dt_image_t)*num);
   dt_print(DT_DEBUG_CACHE, "[image_cache] has %d entries\n", num);
   // initialize first image as empty data:

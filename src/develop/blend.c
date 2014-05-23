@@ -2041,7 +2041,7 @@ void dt_develop_blend_process (struct dt_iop_module_t *self, struct dt_dev_pixel
     ch = 1;
 
   /* allocate space for blend mask */
-  float *mask = dt_alloc_align(64, (size_t)roi_out->width*roi_out->height*sizeof(float));
+  float *mask = dt_reallocarray_align(64, NULL, (size_t)roi_out->width*roi_out->height, sizeof(float));
   if(!mask)
   {
     dt_control_log(_("could not allocate buffer for blending"));
@@ -2285,7 +2285,7 @@ dt_develop_blend_process_cl (struct dt_iop_module_t *self, struct dt_dev_pixelpi
 
   /* quick workaround for masks to be opencl compliant */
   /* the first mask creation may need to be compute by opencl too */
-  mask = dt_alloc_align(64, (size_t)roi_out->width*roi_out->height*sizeof(float));
+  mask = dt_reallocarray_align(64, NULL, (size_t)roi_out->width*roi_out->height, sizeof(float));
   if(!mask)
   {
     dt_control_log(_("could not allocate buffer for blending"));

@@ -432,7 +432,7 @@ process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void *ivoi
       const float *in = ((float *)ivoid) + (size_t)ch*k*roi_out->width;
       float *out = ((float *)ovoid) + (size_t)ch*k*roi_out->width;
 
-      void *cam = dt_alloc_align(16, 4*sizeof(float)*roi_out->width);
+      void *cam = dt_reallocarray_align(16, NULL, (size_t)4*roi_out->width, sizeof(float));
 
       float *camptr = (float *)cam;
       for (int j=0; j<roi_out->width; j++,in+=4,camptr+=4)
@@ -459,7 +459,7 @@ process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void *ivoi
         cmsDoTransform(d->xform_cam_Lab, cam, out, roi_out->width);
         dt_free_align(cam);
       } else {
-        void *rgb = dt_alloc_align(16, 4*sizeof(float)*roi_out->width);
+        void *rgb = dt_reallocarray_align(16, NULL, (size_t)4*roi_out->width, sizeof(float));
         cmsDoTransform(d->xform_cam_nrgb, cam, rgb, roi_out->width);
         dt_free_align(cam);
 
