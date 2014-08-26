@@ -24,6 +24,7 @@
 #include "bauhaus/bauhaus.h"
 #include "gui/gtk.h"
 #include "gui/accelerators.h"
+#include "common/opencl.h"
 
 #include <gtk/gtk.h>
 #include <stdlib.h>
@@ -46,6 +47,15 @@ typedef struct dt_iop_scalepixels_gui_data_t
 dt_iop_scalepixels_gui_data_t;
 
 typedef struct dt_iop_scalepixels_params_t dt_iop_scalepixels_data_t;
+
+typedef struct dt_iop_scalepixels_global_data_t
+{
+  int kernel_scalepixels_bilinear;
+  int kernel_scalepixels_bicubic;
+  int kernel_scalepixels_lanczos2;
+  int kernel_scalepixels_lanczos3;
+}
+dt_iop_scalepixels_global_data_t;
 
 const char *
 name()
@@ -238,8 +248,67 @@ process(
         ch_width);
     }
   }
-
 }
+
+#ifdef HAVE_OPENCL
+int
+process_cl(
+  dt_iop_module_t *self,
+  dt_dev_pixelpipe_iop_t *piece,
+  cl_mem dev_in, cl_mem dev_out,
+  const dt_iop_roi_t *const roi_in,
+  const dt_iop_roi_t *const roi_out)
+{
+  dt_iop_scalepixels_data_t *d = piece->data;
+  dt_iop_scalepixels_global_data_t *gd = self->data;
+
+  cl_int err = -999;
+  const int devid = piece->pipe->devid;
+
+  const int width = roi_out->width;
+  const int height = roi_out->height;
+
+  int kernel = -1;
+
+  const struct dt_interpolation *interpolation = dt_interpolation_new(DT_INTERPOLATION_USERPREF);
+
+  switch(interpolation->id)
+  {
+    case DT_INTERPOLATION_BILINEAR:
+      kernel = gd->kernel_scalepixels_bilinear;
+      break;
+    case DT_INTERPOLATION_BICUBIC:
+      kernel = gd->kernel_scalepixels_bicubic;
+      break;
+    case DT_INTERPOLATION_LANCZOS2:
+      kernel = gd->kernel_scalepixels_lanczos2;
+      break;
+    case DT_INTERPOLATION_LANCZOS3:
+      kernel = gd->kernel_scalepixels_lanczos3;
+      break;
+    default:
+      return FALSE;
+  }
+
+  size_t sizes[3] = { ROUNDUPWD(width), ROUNDUPHT(height), 1 };
+  dt_opencl_set_kernel_arg(devid, kernel, 0, sizeof(cl_mem), &dev_in);
+  dt_opencl_set_kernel_arg(devid, kernel, 1, sizeof(cl_mem), &dev_out);
+  dt_opencl_set_kernel_arg(devid, kernel, 2, sizeof(int), &width);
+  dt_opencl_set_kernel_arg(devid, kernel, 3, sizeof(int), &height);
+  dt_opencl_set_kernel_arg(devid, kernel, 4, sizeof(int), &roi_in->width);
+  dt_opencl_set_kernel_arg(devid, kernel, 5, sizeof(int), &roi_in->height);
+  dt_opencl_set_kernel_arg(devid, kernel, 6, sizeof(float), &d->pixelAspectRatio);
+  err = dt_opencl_enqueue_kernel_2d(devid, kernel, sizes);
+  if(err != CL_SUCCESS)
+    goto error;
+
+  return TRUE;
+
+  error:
+  dt_print(DT_DEBUG_OPENCL, "[opencl_scalepixels] couldn't enqueue kernel! %d\n", err);
+  return FALSE;
+}
+#endif
 
 void
 commit_params(
@@ -313,6 +382,20 @@ reload_defaults(
 }
 
 void
+init_global(
+  dt_iop_module_so_t *self)
+{
+  const int program = 16; // scalepixels.cl from programs.conf
+  self->data = malloc(sizeof(dt_iop_scalepixels_global_data_t));
+
+  dt_iop_scalepixels_global_data_t *gd = self->data;
+  gd->kernel_scalepixels_bilinear = dt_opencl_create_kernel(program, "scalepixels_bilinear");
+  gd->kernel_scalepixels_bicubic  = dt_opencl_create_kernel(program, "scalepixels_bicubic");
+  gd->kernel_scalepixels_lanczos2 = dt_opencl_create_kernel(program, "scalepixels_lanczos2");
+  gd->kernel_scalepixels_lanczos3 = dt_opencl_create_kernel(program, "scalepixels_lanczos3");
+}
+
+void
 init(
   dt_iop_module_t *self)
 {
@@ -336,6 +419,19 @@ cleanup(
   self->gui_data = NULL;
   free(self->params);
   self->params = NULL;
+}
+
+void
+cleanup_global(
+  dt_iop_module_so_t *self)
+{
+  dt_iop_scalepixels_global_data_t *gd = self->data;
+  dt_opencl_free_kernel(gd->kernel_scalepixels_bilinear);
+  dt_opencl_free_kernel(gd->kernel_scalepixels_bicubic);
+  dt_opencl_free_kernel(gd->kernel_scalepixels_lanczos2);
+  dt_opencl_free_kernel(gd->kernel_scalepixels_lanczos3);
+  free(self->data);
+  self->data = NULL;
 }
 
 void
