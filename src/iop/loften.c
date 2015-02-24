@@ -32,6 +32,8 @@
 #include "gui/gtk.h"
 #include "common/gaussian.h"
 #include "common/bilateral.h"
+#include "common/opencl.h"
+#include "common/bilateralcl.h"
 
 DT_MODULE_INTROSPECTION(1, dt_iop_loften_params_t)
 
@@ -59,6 +61,11 @@ typedef struct dt_iop_loften_gui_data_t
 } dt_iop_loften_gui_data_t;
 
 typedef dt_iop_loften_params_t dt_iop_loften_data_t;
+
+typedef struct dt_iop_loften_global_data_t
+{
+  int kernel_loften;
+} dt_iop_loften_global_data_t;
 
 const char *name()
 {
@@ -204,6 +211,93 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
   // 3. blend, suggested opts: uniformly, blend mode: normal, opacity: 50%
 }
 
+#ifdef HAVE_OPENCL
+int process_cl(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_mem dev_in, cl_mem dev_out,
+               const dt_iop_roi_t *const roi_in, const dt_iop_roi_t *const roi_out)
+{
+  const dt_iop_loften_data_t *const d = (dt_iop_loften_data_t *)piece->data;
+  dt_iop_loften_global_data_t *gd = (dt_iop_loften_global_data_t *)self->data;
+
+  cl_int err = -999;
+  const int devid = piece->pipe->devid;
+
+  const int width = roi_in->width;
+  const int height = roi_in->height;
+  const int channels = piece->colors;
+
+  const float radius = fmax(0.1f, fabs(d->radius));
+  const float sigma = radius * roi_in->scale / piece->iscale;
+  const float brightness = d->brightness;
+  const float saturation = d->saturation;
+  const int order = d->order;
+
+  size_t sizes[3];
+  dt_gaussian_cl_t *g = NULL;
+  dt_bilateral_cl_t *b = NULL;
+
+
+  sizes[0] = ROUNDUPWD(width);
+  sizes[1] = ROUNDUPWD(height);
+  sizes[2] = 1;
+  dt_opencl_set_kernel_arg(devid, gd->kernel_loften, 0, sizeof(cl_mem), (void *)&dev_in);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_loften, 1, sizeof(cl_mem), (void *)&dev_out);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_loften, 2, sizeof(int), (void *)&width);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_loften, 3, sizeof(int), (void *)&height);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_loften, 4, sizeof(float), (void *)&brightness);
+  dt_opencl_set_kernel_arg(devid, gd->kernel_loften, 5, sizeof(float), (void *)&saturation);
+
+  err = dt_opencl_enqueue_kernel_2d(devid, gd->kernel_loften, sizes);
+  if(err != CL_SUCCESS) goto error;
+
+  switch(d->soften_algo)
+  {
+    case SOFTEN_ALGO_GAUSSIAN:
+    {
+      float Labmax[4];
+      float Labmin[4];
+
+      for(int k = 0; k < 4; k++) Labmax[k] = INFINITY;
+      for(int k = 0; k < 4; k++) Labmin[k] = -INFINITY;
+
+      g = dt_gaussian_init_cl(devid, width, height, channels, Labmax, Labmin, sigma, order);
+      if(!g) goto error;
+      err = dt_gaussian_blur_cl(g, dev_out, dev_out);
+      if(err != CL_SUCCESS) goto error;
+      dt_gaussian_free_cl(g);
+      g = NULL;
+      break;
+    }
+    case SOFTEN_ALGO_BILATERAL:
+    {
+      const float sigma_r = 100.0f; // does not depend on scale
+      const float sigma_s = sigma;
+      const float detail = -1.0f; // we want the bilateral base layer
+
+      b = dt_bilateral_init_cl(devid, width, height, sigma_s, sigma_r);
+      if(!b) goto error;
+      err = dt_bilateral_splat_cl(b, dev_out);
+      if(err != CL_SUCCESS) goto error;
+      err = dt_bilateral_blur_cl(b);
+      if(err != CL_SUCCESS) goto error;
+      err = dt_bilateral_slice_cl(b, dev_out, dev_out, detail);
+      if(err != CL_SUCCESS) goto error;
+      dt_bilateral_free_cl(b);
+      b = NULL; // make sure we don't clean it up twice
+      break;
+    }
+  }
+
+  return TRUE;
+
+error:
+  if(g) dt_gaussian_free_cl(g);
+  if(b) dt_bilateral_free_cl(b);
+
+  dt_print(DT_DEBUG_OPENCL, "[opencl_loften] couldn't enqueue kernel! %d\n", err);
+  return FALSE;
+}
+#endif
+
 static void radius_callback(GtkWidget *slider, gpointer user_data)
 {
   dt_iop_module_t *self = (dt_iop_module_t *)user_data;
@@ -258,6 +352,11 @@ void commit_params(struct dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pix
   d->soften_algo = p->soften_algo;
   d->saturation = p->saturation / 100.0f;
   d->brightness = 1.0f / exp2f(-p->brightness);
+
+#ifdef HAVE_OPENCL
+  if(d->soften_algo == SOFTEN_ALGO_BILATERAL)
+    piece->process_cl_ready = (piece->process_cl_ready && !(darktable.opencl->avoid_atomics));
+#endif
 }
 
 void init_pipe(struct dt_iop_module_t *self, dt_dev_pixelpipe_t *pipe, dt_dev_pixelpipe_iop_t *piece)
@@ -314,12 +413,28 @@ void init(dt_iop_module_t *self)
   self->gui_data = NULL;
 }
 
+void init_global(dt_iop_module_so_t *module)
+{
+  const int program = 6; // gaussian.cl, from programs.conf
+  module->data = malloc(sizeof(dt_iop_loften_global_data_t));
+  dt_iop_loften_global_data_t *gd = module->data;
+  gd->kernel_loften = dt_opencl_create_kernel(program, "loften");
+}
+
 void cleanup(dt_iop_module_t *self)
 {
   free(self->gui_data);
   self->gui_data = NULL;
   free(self->params);
   self->params = NULL;
+}
+
+void cleanup_global(dt_iop_module_so_t *module)
+{
+  dt_iop_loften_global_data_t *gd = module->data;
+  dt_opencl_free_kernel(gd->kernel_loften);
+  free(module->data);
+  module->data = NULL;
 }
 
 void gui_init(struct dt_iop_module_t *self)

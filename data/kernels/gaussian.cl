@@ -251,6 +251,27 @@ lowpass_mix(read_only image2d_t in, write_only image2d_t out, unsigned int width
 
 
 
+kernel void
+loften(read_only image2d_t in, write_only image2d_t out,
+       unsigned int width, unsigned int height,
+       const float brightness, const float saturation)
+{
+  const unsigned int x = get_global_id(0);
+  const unsigned int y = get_global_id(1);
+
+  if(x >= width || y >= height) return;
+
+  float4 p = read_imagef(in, sampleri, (int2)(x, y));
+
+  p.x *= brightness;
+  p.y *= saturation;
+  p.z *= saturation;
+
+  write_imagef(out, (int2)(x, y), p);
+}
+
+
+
 float4
 overlay(const float4 in_a, const float4 in_b, const float opacity, const float transform, const float ccorrect,
         const int4 unbound, const float low_approximation)
