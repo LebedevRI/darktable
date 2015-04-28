@@ -43,20 +43,6 @@
 
 DT_MODULE_INTROSPECTION(1, dt_iop_highlightsinpaint_params_t)
 
-typedef struct dt_iop_highlightsinpaint_params1_t
-{
-  float threshold;
-  float spatial;
-  float range;
-} dt_iop_highlightsinpaint_params1_t;
-
-typedef struct dt_iop_highlightsinpaint_params2_t
-{
-  float threshold;
-  float spatial;
-  float range;
-} dt_iop_highlightsinpaint_params2_t;
-
 typedef struct dt_iop_highlightsinpaint_params_t
 {
   float threshold;
@@ -66,10 +52,8 @@ typedef struct dt_iop_highlightsinpaint_params_t
 
 typedef struct dt_iop_highlightsinpaint_RGB_t
 {
-  float R;
-  float G;
-  float B;
-  float weight;
+  float v[3]; // pixel value
+  float weight[3];
 } dt_iop_highlightsinpaint_RGB_t;
 
 typedef struct dt_iop_highlightsinpaint_bilateral_frozen_t
@@ -140,14 +124,11 @@ typedef struct dt_iop_highlightsinpaint_bilateral_t
 } dt_iop_highlightsinpaint_bilateral_t;
 
 static inline void image_to_grid(const dt_iop_highlightsinpaint_bilateral_t *const b, const float i,
-                                 const float j, const float R, const float G, const float B, float *x,
-                                 float *y, float *z_R, float *z_G, float *z_B)
+                                 const float j, const float V, float *x, float *y, float *z)
 {
   *x = CLAMPS(i / b->sigma_s, 0, b->size_x - 1);
   *y = CLAMPS(j / b->sigma_s, 0, b->size_y - 1);
-  *z_R = CLAMPS(R / b->sigma_r, 0, b->size_z - 1);
-  *z_G = CLAMPS(G / b->sigma_r, 0, b->size_z - 1);
-  *z_B = CLAMPS(B / b->sigma_r, 0, b->size_z - 1);
+  *z = CLAMPS(V / b->sigma_r, 0, b->size_z - 1);
 }
 
 static inline void grid_rescale(const dt_iop_highlightsinpaint_bilateral_t *const b, const int i, const int j,
@@ -283,45 +264,40 @@ static void dt_iop_highlightsinpaint_bilateral_splat(const dt_iop_highlightsinpa
     size_t index = 4 * j * b->width;
     for(int i = 0; i < b->width; i++, index += 4)
     {
-      float x, y, z_R, z_G, z_B, weight;
-      const float Rin = in[index];
-      const float Gin = in[index + 1];
-      const float Bin = in[index + 2];
       // we deliberately ignore pixels above threshold
-      if(Rin > threshold || Gin > threshold || Bin > threshold) continue;
+      // if(in[index] > threshold || in[index + 1] > threshold || in[index + 2] > threshold) continue;
 
-      weight = 1.0f;
+      float x, y, z;
+      const float Rin = in[index + 1];
 
-      image_to_grid(b, i, j, Rin, Gin, Bin, &x, &y, &z_R, &z_G, &z_B);
+      // we deliberately ignore pixels above threshold
+      if(Rin > threshold) continue;
+
+      image_to_grid(b, i, j, Rin, &x, &y, &z);
 
       // closest integer splatting:
       const int xi = CLAMPS((int)round(x), 0, b->size_x - 1);
       const int yi = CLAMPS((int)round(y), 0, b->size_y - 1);
-      const int zi = CLAMPS((int)round(z_R), 0, b->size_z - 1);
-      // const int zi_R = CLAMPS((int)round(z_R), 0, b->size_z - 1);
-      // const int zi_G = CLAMPS((int)round(z_G), 0, b->size_z - 1);
-      // const int zi_B = CLAMPS((int)round(z_B), 0, b->size_z - 1);
+      const int zi = CLAMPS((int)round(z), 0, b->size_z - 1);
       const size_t grid_index = xi + b->size_x * (yi + b->size_y * zi);
 
-#ifdef _OPENMP
-#pragma omp atomic
-#endif
-      b->buf[grid_index].R += Rin * weight;
+      for(int c = 0; c < 3; c++)
+      {
+        const float Vin = in[index + c];
+
+        // we deliberately ignore pixels above threshold
+        if(Vin > threshold) continue;
 
 #ifdef _OPENMP
 #pragma omp atomic
 #endif
-      b->buf[grid_index].G += Gin * weight;
+        b->buf[grid_index].v[c] += Vin;
 
 #ifdef _OPENMP
 #pragma omp atomic
 #endif
-      b->buf[grid_index].B += Bin * weight;
-
-#ifdef _OPENMP
-#pragma omp atomic
-#endif
-      b->buf[grid_index].weight += weight;
+        b->buf[grid_index].weight[c] += 1.0f;
+      }
     }
   }
 }
@@ -342,49 +318,58 @@ static void blur_line(dt_iop_highlightsinpaint_RGB_t *buf, const int offset1, co
     for(int j = 0; j < size2; j++)
     {
       dt_iop_highlightsinpaint_RGB_t tmp1 = buf[index];
-      buf[index].R = buf[index].R * w0 + w1 * buf[index + offset3].R + w2 * buf[index + 2 * offset3].R;
-      buf[index].G = buf[index].G * w0 + w1 * buf[index + offset3].G + w2 * buf[index + 2 * offset3].G;
-      buf[index].B = buf[index].B * w0 + w1 * buf[index + offset3].B + w2 * buf[index + 2 * offset3].B;
-      buf[index].weight = buf[index].weight * w0 + w1 * buf[index + offset3].weight
-                          + w2 * buf[index + 2 * offset3].weight;
+      for(int c = 0; c < 3; c++)
+      {
+        buf[index].v[c] = buf[index].v[c] * w0 + w1 * buf[index + offset3].v[c]
+                          + w2 * buf[index + 2 * offset3].v[c];
+        buf[index].weight[c] = buf[index].weight[c] * w0 + w1 * buf[index + offset3].weight[c]
+                               + w2 * buf[index + 2 * offset3].weight[c];
+      }
       index += offset3;
+
       dt_iop_highlightsinpaint_RGB_t tmp2 = buf[index];
-      buf[index].R = buf[index].R * w0 + w1 * (buf[index + offset3].R + tmp1.R)
-                     + w2 * buf[index + 2 * offset3].R;
-      buf[index].G = buf[index].G * w0 + w1 * (buf[index + offset3].G + tmp1.G)
-                     + w2 * buf[index + 2 * offset3].G;
-      buf[index].B = buf[index].B * w0 + w1 * (buf[index + offset3].B + tmp1.B)
-                     + w2 * buf[index + 2 * offset3].B;
-      buf[index].weight = buf[index].weight * w0 + w1 * (buf[index + offset3].weight + tmp1.weight)
-                          + w2 * buf[index + 2 * offset3].weight;
+      for(int c = 0; c < 3; c++)
+      {
+        buf[index].v[c] = buf[index].v[c] * w0 + w1 * (buf[index + offset3].v[c] + tmp1.v[c])
+                          + w2 * buf[index + 2 * offset3].v[c];
+        buf[index].weight[c] = buf[index].weight[c] * w0
+                               + w1 * (buf[index + offset3].weight[c] + tmp1.weight[c])
+                               + w2 * buf[index + 2 * offset3].weight[c];
+      }
       index += offset3;
+
       for(int i = 2; i < size3 - 2; i++)
       {
         const dt_iop_highlightsinpaint_RGB_t tmp3 = buf[index];
-        buf[index].R = buf[index].R * w0 + w1 * (buf[index + offset3].R + tmp2.R)
-                       + w2 * (buf[index + 2 * offset3].R + tmp1.R);
-        buf[index].G = buf[index].G * w0 + w1 * (buf[index + offset3].G + tmp2.G)
-                       + w2 * (buf[index + 2 * offset3].G + tmp1.G);
-        buf[index].B = buf[index].B * w0 + w1 * (buf[index + offset3].B + tmp2.B)
-                       + w2 * (buf[index + 2 * offset3].B + tmp1.B);
-        buf[index].weight = buf[index].weight * w0 + w1 * (buf[index + offset3].weight + tmp2.weight)
-                            + w2 * (buf[index + 2 * offset3].weight + tmp1.weight);
-
+        for(int c = 0; c < 3; c++)
+        {
+          buf[index].v[c] = buf[index].v[c] * w0 + w1 * (buf[index + offset3].v[c] + tmp2.v[c])
+                            + w2 * (buf[index + 2 * offset3].v[c] + tmp1.v[c]);
+          buf[index].weight[c] = buf[index].weight[c] * w0
+                                 + w1 * (buf[index + offset3].weight[c] + tmp2.weight[c])
+                                 + w2 * (buf[index + 2 * offset3].weight[c] + tmp1.weight[c]);
+        }
         index += offset3;
         tmp1 = tmp2;
         tmp2 = tmp3;
       }
+
       const dt_iop_highlightsinpaint_RGB_t tmp3 = buf[index];
-      buf[index].R = buf[index].R * w0 + w1 * (buf[index + offset3].R + tmp2.R) + w2 * tmp1.R;
-      buf[index].G = buf[index].G * w0 + w1 * (buf[index + offset3].G + tmp2.G) + w2 * tmp1.G;
-      buf[index].B = buf[index].B * w0 + w1 * (buf[index + offset3].B + tmp2.B) + w2 * tmp1.B;
-      buf[index].weight = buf[index].weight * w0 + w1 * (buf[index + offset3].weight + tmp2.weight)
-                          + w2 * tmp1.weight;
+      for(int c = 0; c < 3; c++)
+      {
+        buf[index].v[c] = buf[index].v[c] * w0 + w1 * (buf[index + offset3].v[c] + tmp2.v[c])
+                          + w2 * tmp1.v[c];
+        buf[index].weight[c] = buf[index].weight[c] * w0
+                               + w1 * (buf[index + offset3].weight[c] + tmp2.weight[c]) + w2 * tmp1.weight[c];
+      }
       index += offset3;
-      buf[index].R = buf[index].R * w0 + w1 * tmp3.R + w2 * tmp2.R;
-      buf[index].G = buf[index].G * w0 + w1 * tmp3.G + w2 * tmp2.G;
-      buf[index].B = buf[index].B * w0 + w1 * tmp3.B + w2 * tmp2.B;
-      buf[index].weight = buf[index].weight * w0 + w1 * tmp3.weight + w2 * tmp2.weight;
+
+
+      for(int c = 0; c < 3; c++)
+      {
+        buf[index].v[c] = buf[index].v[c] * w0 + w1 * tmp3.v[c] + w2 * tmp2.v[c];
+        buf[index].weight[c] = buf[index].weight[c] * w0 + w1 * tmp3.weight[c] + w2 * tmp2.weight[c];
+      }
       index += offset3;
       index += offset2 - offset3 * size3;
     }
@@ -418,66 +403,53 @@ static void dt_iop_highlightsinpaint_bilateral_slice(const dt_iop_highlightsinpa
     size_t index = 4 * j * roi->width;
     for(int i = 0; i < roi->width; i++, index += 4)
     {
-      float x, y, z_R, z_G, z_B;
+      float x, y, z;
       float px, py;
-      const float Rin = out[index + 0] = in[index + 0];
+
+      out[index + 0] = in[index + 0];
       const float Gin = out[index + 1] = in[index + 1];
-      const float Bin = out[index + 2] = in[index + 2];
+      out[index + 2] = in[index + 2];
       out[index + 3] = in[index + 3];
-      const float blend = CLAMPS(20.0f / threshold * Rin - 19.0f, 0.0f, 1.0f);
+
+      const float blend = CLAMPS(20.0f / threshold * Gin - 19.0f, 0.0f, 1.0f);
       if(blend == 0.0f) continue;
+
       grid_rescale(b, i, j, roi, rescale, &px, &py);
-      image_to_grid(b, px, py, Rin, Gin, Bin, &x, &y, &z_R, &z_G, &z_B);
+      image_to_grid(b, px, py, Gin, &x, &y, &z);
       // trilinear lookup:
       const int xi = MIN((int)x, b->size_x - 2);
       const int yi = MIN((int)y, b->size_y - 2);
-      const int zi = MIN((int)z_R, b->size_z - 2);
+      const int zi = MIN((int)z, b->size_z - 2);
       const float xf = x - xi;
       const float yf = y - yi;
-      const float zf = z_R - zi;
+      const float zf = z - zi;
       const size_t gi = xi + b->size_x * (yi + b->size_y * zi);
 
-      const float Rout = b->buf[gi].R * (1.0f - xf) * (1.0f - yf) * (1.0f - zf)
-                         + b->buf[gi + ox].R * (xf) * (1.0f - yf) * (1.0f - zf)
-                         + b->buf[gi + oy].R * (1.0f - xf) * (yf) * (1.0f - zf)
-                         + b->buf[gi + ox + oy].R * (xf) * (yf) * (1.0f - zf)
-                         + b->buf[gi + oz].R * (1.0f - xf) * (1.0f - yf) * (zf)
-                         + b->buf[gi + ox + oz].R * (xf) * (1.0f - yf) * (zf)
-                         + b->buf[gi + oy + oz].R * (1.0f - xf) * (yf) * (zf)
-                         + b->buf[gi + ox + oy + oz].R * (xf) * (yf) * (zf);
+      for(int c = 0; c < 3; c++)
+      {
+        const float Vin = out[index + c] = in[index + c];
 
-      const float Gout = b->buf[gi].G * (1.0f - xf) * (1.0f - yf) * (1.0f - zf)
-                         + b->buf[gi + ox].G * (xf) * (1.0f - yf) * (1.0f - zf)
-                         + b->buf[gi + oy].G * (1.0f - xf) * (yf) * (1.0f - zf)
-                         + b->buf[gi + ox + oy].G * (xf) * (yf) * (1.0f - zf)
-                         + b->buf[gi + oz].G * (1.0f - xf) * (1.0f - yf) * (zf)
-                         + b->buf[gi + ox + oz].G * (xf) * (1.0f - yf) * (zf)
-                         + b->buf[gi + oy + oz].G * (1.0f - xf) * (yf) * (zf)
-                         + b->buf[gi + ox + oy + oz].G * (xf) * (yf) * (zf);
+        const float Vout = b->buf[gi].v[c] * (1.0f - xf) * (1.0f - yf) * (1.0f - zf)
+                           + b->buf[gi + ox].v[c] * (xf) * (1.0f - yf) * (1.0f - zf)
+                           + b->buf[gi + oy].v[c] * (1.0f - xf) * (yf) * (1.0f - zf)
+                           + b->buf[gi + ox + oy].v[c] * (xf) * (yf) * (1.0f - zf)
+                           + b->buf[gi + oz].v[c] * (1.0f - xf) * (1.0f - yf) * (zf)
+                           + b->buf[gi + ox + oz].v[c] * (xf) * (1.0f - yf) * (zf)
+                           + b->buf[gi + oy + oz].v[c] * (1.0f - xf) * (yf) * (zf)
+                           + b->buf[gi + ox + oy + oz].v[c] * (xf) * (yf) * (zf);
 
+        const float weight = b->buf[gi].weight[c] * (1.0f - xf) * (1.0f - yf) * (1.0f - zf)
+                             + b->buf[gi + ox].weight[c] * (xf) * (1.0f - yf) * (1.0f - zf)
+                             + b->buf[gi + oy].weight[c] * (1.0f - xf) * (yf) * (1.0f - zf)
+                             + b->buf[gi + ox + oy].weight[c] * (xf) * (yf) * (1.0f - zf)
+                             + b->buf[gi + oz].weight[c] * (1.0f - xf) * (1.0f - yf) * (zf)
+                             + b->buf[gi + ox + oz].weight[c] * (xf) * (1.0f - yf) * (zf)
+                             + b->buf[gi + oy + oz].weight[c] * (1.0f - xf) * (yf) * (zf)
+                             + b->buf[gi + ox + oy + oz].weight[c] * (xf) * (yf) * (zf);
 
-      const float Bout = b->buf[gi].B * (1.0f - xf) * (1.0f - yf) * (1.0f - zf)
-                         + b->buf[gi + ox].B * (xf) * (1.0f - yf) * (1.0f - zf)
-                         + b->buf[gi + oy].B * (1.0f - xf) * (yf) * (1.0f - zf)
-                         + b->buf[gi + ox + oy].B * (xf) * (yf) * (1.0f - zf)
-                         + b->buf[gi + oz].B * (1.0f - xf) * (1.0f - yf) * (zf)
-                         + b->buf[gi + ox + oz].B * (xf) * (1.0f - yf) * (zf)
-                         + b->buf[gi + oy + oz].B * (1.0f - xf) * (yf) * (zf)
-                         + b->buf[gi + ox + oy + oz].B * (xf) * (yf) * (zf);
-
-      /*
-            const float weight = b->buf[gi].weight * (1.0f - xf) * (1.0f - yf) * (1.0f - zf)
-                                 + b->buf[gi + ox].weight * (xf) * (1.0f - yf) * (1.0f - zf)
-                                 + b->buf[gi + oy].weight * (1.0f - xf) * (yf) * (1.0f - zf)
-                                 + b->buf[gi + ox + oy].weight * (xf) * (yf) * (1.0f - zf)
-                                 + b->buf[gi + oz].weight * (1.0f - xf) * (1.0f - yf) * (zf)
-                                 + b->buf[gi + ox + oz].weight * (xf) * (1.0f - yf) * (zf)
-                                 + b->buf[gi + oy + oz].weight * (1.0f - xf) * (yf) * (zf)
-                                 + b->buf[gi + ox + oy + oz].weight * (xf) * (yf) * (zf);
-      */
-      out[index + 0] = Rout;
-      out[index + 1] = Gout;
-      out[index + 1] = Bout;
+        // out[index + c] = (weight > 0.0f) ? Vout / weight : Vin;
+        out[index + c] = (weight > 0.0f) ? Vin * (1.0f - blend) + Vout * blend : Vin;
+      }
     }
   }
 }
