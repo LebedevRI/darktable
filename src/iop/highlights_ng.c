@@ -33,7 +33,8 @@ DT_MODULE_INTROSPECTION(1, dt_iop_highlights_ng_params_t)
 
 typedef enum dt_iop_highlights_ng_mode_t
 {
-  MODE_CLIP
+  MODE_CLIP,
+  MODE_Lch
 } dt_iop_highlights_ng_mode_t;
 
 typedef struct dt_iop_highlights_ng_params_t
@@ -78,8 +79,20 @@ void process(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *c
 
   switch(d->mode)
   {
-    case MODE_CLIP:
+    case MODE_Lch:
     {
+/*
+ * these 2 constants were computed using following Sage code:
+ *
+ * sqrt3 = sqrt(3)
+ * sqrt12 = sqrt(12) # 2*sqrt(3)
+ *
+ * print 'sqrt3 = ', sqrt3, ' ~= ', RealField(128)(sqrt3)
+ * print 'sqrt12 = ', sqrt12, ' ~= ', RealField(128)(sqrt12)
+ */
+#define SQRT3 1.7320508075688772935274463415058723669L
+#define SQRT12 3.4641016151377545870548926830117447339L // 2*SQRT3
+
 #ifdef _OPENMP
 #pragma omp parallel for schedule(dynamic) default(none)
 #endif
@@ -88,7 +101,55 @@ void process(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *c
         const float *in = (const float *)ivoid + (size_t)4 * roi_in->width * j;
         float *out = (float *)ovoid + (size_t)4 * roi_out->width * j;
         for(int i = 0; i < roi_out->width; i++, in += 4, out += 4)
+        {
+          const float R = in[0], G = in[1], B = in[2];
+          if(R > threshold || G > threshold || B > threshold)
+          {
+            const float Ro = MIN(R, threshold);
+            const float Go = MIN(G, threshold);
+            const float Bo = MIN(B, threshold);
+
+            const float L = R + G + B;
+            float C = SQRT3 * (R - G);
+            float H = 2.0f * B - G - R;
+            const float Co = SQRT3 * (Ro - Go);
+            const float Ho = 2.0f * Bo - Go - Ro;
+
+            if(R != G && G != B)
+            {
+              const float ratio = sqrtf((Co * Co + Ho * Ho) / (C * C + H * H));
+              C *= ratio;
+              H *= ratio;
+            }
+
+            out[0] = L / 3.0f - H / 6.0f + C / SQRT12;
+            out[1] = L / 3.0f - H / 6.0f - C / SQRT12;
+            out[2] = L / 3.0f + H / 3.0f;
+          }
+          else
+          {
+            out[0] = in[0];
+            out[1] = in[1];
+            out[2] = in[2];
+          }
+        }
+      }
+      break;
+#undef SQRT12
+#undef SQRT3
+    }
+    default:
+    case MODE_CLIP:
+    {
       const __m128 clip = _mm_set1_ps(threshold);
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) default(none)
+#endif
+      for(int j = 0; j < roi_out->height; j++)
+      {
+        const float *in = (const float *)ivoid + (size_t)4 * roi_in->width * j;
+        float *out = (float *)ovoid + (size_t)4 * roi_out->width * j;
+        for(int i = 0; i < roi_out->width; i++, in += 4, out += 4)
           _mm_stream_ps(out, _mm_min_ps(clip, _mm_load_ps(in)));
       }
       _mm_sfence();
@@ -168,6 +229,7 @@ void gui_init(dt_iop_module_t *self)
   gtk_box_pack_start(GTK_BOX(self->widget), g->mode, TRUE, TRUE, 0);
   dt_bauhaus_widget_set_label(g->mode, NULL, _("method"));
   dt_bauhaus_combobox_add(g->mode, _("clip highlights"));
+  dt_bauhaus_combobox_add(g->mode, _("reconstruct in Lch"));
   g_object_set(G_OBJECT(g->mode), "tooltip-text", _("highlight reconstruction method"), (char *)NULL);
   g_signal_connect(G_OBJECT(g->mode), "value-changed", G_CALLBACK(mode_changed), self);
 
