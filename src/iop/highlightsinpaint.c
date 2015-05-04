@@ -173,7 +173,7 @@ dt_iop_highlightsinpaint_bilateral_init(const dt_iop_roi_t *roi, // dimensions o
   b->y = roi->y;
   b->scale = iscale / roi->scale;
   b->sigma_s = MAX(roi->height / (b->size_y - 1.0f), roi->width / (b->size_x - 1.0f));
-  b->sigma_r = 100.0f / (b->size_z - 1.0f);
+  b->sigma_r = 1.0f / (b->size_z - 1.0f);
   b->buf = dt_alloc_align(16, b->size_x * b->size_y * b->size_z * sizeof(dt_iop_highlightsinpaint_RGB_t));
 
   memset(b->buf, 0, b->size_x * b->size_y * b->size_z * sizeof(dt_iop_highlightsinpaint_RGB_t));
@@ -265,15 +265,12 @@ static void dt_iop_highlightsinpaint_bilateral_splat(const dt_iop_highlightsinpa
     for(int i = 0; i < b->width; i++, index += 4)
     {
       // we deliberately ignore pixels above threshold
-      // if(in[index] > threshold || in[index + 1] > threshold || in[index + 2] > threshold) continue;
+      if(in[index] > threshold || in[index + 1] > threshold || in[index + 2] > threshold) continue;
 
       float x, y, z;
-      const float Rin = in[index + 1];
+      const float Gin = in[index + 1];
 
-      // we deliberately ignore pixels above threshold
-      if(Rin > threshold) continue;
-
-      image_to_grid(b, i, j, Rin, &x, &y, &z);
+      image_to_grid(b, i, j, Gin, &x, &y, &z);
 
       // closest integer splatting:
       const int xi = CLAMPS((int)round(x), 0, b->size_x - 1);
@@ -284,9 +281,6 @@ static void dt_iop_highlightsinpaint_bilateral_splat(const dt_iop_highlightsinpa
       for(int c = 0; c < 3; c++)
       {
         const float Vin = in[index + c];
-
-        // we deliberately ignore pixels above threshold
-        if(Vin > threshold) continue;
 
 #ifdef _OPENMP
 #pragma omp atomic
@@ -427,6 +421,7 @@ static void dt_iop_highlightsinpaint_bilateral_slice(const dt_iop_highlightsinpa
 
       for(int c = 0; c < 3; c++)
       {
+        if(c == 1) continue;
         const float Vin = out[index + c] = in[index + c];
 
         const float Vout = b->buf[gi].v[c] * (1.0f - xf) * (1.0f - yf) * (1.0f - zf)
