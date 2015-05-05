@@ -41,6 +41,18 @@
 #define DT_COLORRECONSTRUCT_BILATERAL_MAX_RES_R 100
 #define DT_COLORRECONSTRUCT_SPATIAL_APPROX 100.0f
 
+/*
+ * these 2 constants were computed using following Sage code:
+ *
+ * sqrt3 = sqrt(3)
+ * sqrt12 = sqrt(12) # 2*sqrt(3)
+ *
+ * print 'sqrt3 = ', sqrt3, ' ~= ', RealField(128)(sqrt3)
+ * print 'sqrt12 = ', sqrt12, ' ~= ', RealField(128)(sqrt12)
+ */
+#define SQRT3 1.7320508075688772935274463415058723669L
+#define SQRT12 3.4641016151377545870548926830117447339L // 2*SQRT3
+
 DT_MODULE_INTROSPECTION(1, dt_iop_highlightsinpaint_params_t)
 
 typedef struct dt_iop_highlightsinpaint_params_t
@@ -124,11 +136,13 @@ typedef struct dt_iop_highlightsinpaint_bilateral_t
 } dt_iop_highlightsinpaint_bilateral_t;
 
 static inline void image_to_grid(const dt_iop_highlightsinpaint_bilateral_t *const b, const float i,
-                                 const float j, const float V, float *x, float *y, float *z)
+                                 const float j, const float *const in, float *x, float *y, float *z)
 {
+  const float L = (in[0] + in[1] + in[2]) / 3.0f;
+
   *x = CLAMPS(i / b->sigma_s, 0, b->size_x - 1);
   *y = CLAMPS(j / b->sigma_s, 0, b->size_y - 1);
-  *z = CLAMPS(V / b->sigma_r, 0, b->size_z - 1);
+  *z = CLAMPS(L / b->sigma_r, 0, b->size_z - 1);
 }
 
 static inline void grid_rescale(const dt_iop_highlightsinpaint_bilateral_t *const b, const int i, const int j,
@@ -163,7 +177,7 @@ dt_iop_highlightsinpaint_bilateral_init(const dt_iop_roi_t *roi, // dimensions o
   if(!b) return NULL;
   float _x = roundf(roi->width / sigma_s);
   float _y = roundf(roi->height / sigma_s);
-  float _z = roundf(100.0f / sigma_r);
+  float _z = roundf(sigma_r);
   b->size_x = CLAMPS((int)_x, 4, DT_COLORRECONSTRUCT_BILATERAL_MAX_RES_S) + 1;
   b->size_y = CLAMPS((int)_y, 4, DT_COLORRECONSTRUCT_BILATERAL_MAX_RES_S) + 1;
   b->size_z = CLAMPS((int)_z, 4, DT_COLORRECONSTRUCT_BILATERAL_MAX_RES_R) + 1;
@@ -177,10 +191,10 @@ dt_iop_highlightsinpaint_bilateral_init(const dt_iop_roi_t *roi, // dimensions o
   b->buf = dt_alloc_align(16, b->size_x * b->size_y * b->size_z * sizeof(dt_iop_highlightsinpaint_RGB_t));
 
   memset(b->buf, 0, b->size_x * b->size_y * b->size_z * sizeof(dt_iop_highlightsinpaint_RGB_t));
-#if 0
-  fprintf(stderr, "[bilateral] created grid [%d %d %d]"
-          " with sigma (%f %f) (%f %f)\n", b->size_x, b->size_y, b->size_z,
-          b->sigma_s, sigma_s, b->sigma_r, sigma_r);
+#if 1
+  fprintf(stderr, "[bilateral] created grid [%lu %lu %lu]"
+                  " with sigma (%f %f) (%f %f)\n",
+          b->size_x, b->size_y, b->size_z, b->sigma_s, sigma_s, b->sigma_r, sigma_r);
 #endif
   return b;
 }
@@ -268,9 +282,8 @@ static void dt_iop_highlightsinpaint_bilateral_splat(const dt_iop_highlightsinpa
       if(in[index] > threshold || in[index + 1] > threshold || in[index + 2] > threshold) continue;
 
       float x, y, z;
-      const float Gin = in[index + 1];
 
-      image_to_grid(b, i, j, Gin, &x, &y, &z);
+      image_to_grid(b, i, j, &(in[index]), &x, &y, &z);
 
       // closest integer splatting:
       const int xi = CLAMPS((int)round(x), 0, b->size_x - 1);
@@ -278,20 +291,30 @@ static void dt_iop_highlightsinpaint_bilateral_splat(const dt_iop_highlightsinpa
       const int zi = CLAMPS((int)round(z), 0, b->size_z - 1);
       const size_t grid_index = xi + b->size_x * (yi + b->size_y * zi);
 
-      for(int c = 0; c < 3; c++)
-      {
-        const float Vin = in[index + c];
+      const float R = in[index + 0], G = in[index + 1], B = in[index + 2];
+      const float L = R + G + B;
+      const float C = SQRT3 * (R - G);
+      const float H = 2.0f * B - R - G;
 
 #ifdef _OPENMP
 #pragma omp atomic
 #endif
-        b->buf[grid_index].v[c] += Vin;
+      b->buf[grid_index].v[0] += L;
 
 #ifdef _OPENMP
 #pragma omp atomic
 #endif
-        b->buf[grid_index].weight[c] += 1.0f;
-      }
+      b->buf[grid_index].v[1] += C;
+
+#ifdef _OPENMP
+#pragma omp atomic
+#endif
+      b->buf[grid_index].v[2] += H;
+
+#ifdef _OPENMP
+#pragma omp atomic
+#endif
+      b->buf[grid_index].weight[0] += 1.0f;
     }
   }
 }
@@ -400,16 +423,18 @@ static void dt_iop_highlightsinpaint_bilateral_slice(const dt_iop_highlightsinpa
       float x, y, z;
       float px, py;
 
-      out[index + 0] = in[index + 0];
+      const float Rin = out[index + 0] = in[index + 0];
       const float Gin = out[index + 1] = in[index + 1];
-      out[index + 2] = in[index + 2];
+      const float Bin = out[index + 2] = in[index + 2];
       out[index + 3] = in[index + 3];
 
-      const float blend = CLAMPS(20.0f / threshold * Gin - 19.0f, 0.0f, 1.0f);
+      const float L = (in[index + 0] + in[index + 1] + in[index + 2]) / 3.0f;
+
+      const float blend = CLAMPS(20.0f / threshold * L - 19.0f, 0.0f, 1.0f);
       if(blend == 0.0f) continue;
 
       grid_rescale(b, i, j, roi, rescale, &px, &py);
-      image_to_grid(b, px, py, Gin, &x, &y, &z);
+      image_to_grid(b, px, py, &(in[index]), &x, &y, &z);
       // trilinear lookup:
       const int xi = MIN((int)x, b->size_x - 2);
       const int yi = MIN((int)y, b->size_y - 2);
@@ -419,32 +444,59 @@ static void dt_iop_highlightsinpaint_bilateral_slice(const dt_iop_highlightsinpa
       const float zf = z - zi;
       const size_t gi = xi + b->size_x * (yi + b->size_y * zi);
 
-      for(int c = 0; c < 3; c++)
-      {
-        if(c == 1) continue;
-        const float Vin = out[index + c] = in[index + c];
+      //       const float Lout = b->buf[gi].v[0] * (1.0f - xf) * (1.0f - yf) * (1.0f - zf)
+      //                          + b->buf[gi + ox].v[0] * (xf) * (1.0f - yf) * (1.0f - zf)
+      //                          + b->buf[gi + oy].v[0] * (1.0f - xf) * (yf) * (1.0f - zf)
+      //                          + b->buf[gi + ox + oy].v[0] * (xf) * (yf) * (1.0f - zf)
+      //                          + b->buf[gi + oz].v[0] * (1.0f - xf) * (1.0f - yf) * (zf)
+      //                          + b->buf[gi + ox + oz].v[0] * (xf) * (1.0f - yf) * (zf)
+      //                          + b->buf[gi + oy + oz].v[0] * (1.0f - xf) * (yf) * (zf)
+      //                          + b->buf[gi + ox + oy + oz].v[0] * (xf) * (yf) * (zf);
 
-        const float Vout = b->buf[gi].v[c] * (1.0f - xf) * (1.0f - yf) * (1.0f - zf)
-                           + b->buf[gi + ox].v[c] * (xf) * (1.0f - yf) * (1.0f - zf)
-                           + b->buf[gi + oy].v[c] * (1.0f - xf) * (yf) * (1.0f - zf)
-                           + b->buf[gi + ox + oy].v[c] * (xf) * (yf) * (1.0f - zf)
-                           + b->buf[gi + oz].v[c] * (1.0f - xf) * (1.0f - yf) * (zf)
-                           + b->buf[gi + ox + oz].v[c] * (xf) * (1.0f - yf) * (zf)
-                           + b->buf[gi + oy + oz].v[c] * (1.0f - xf) * (yf) * (zf)
-                           + b->buf[gi + ox + oy + oz].v[c] * (xf) * (yf) * (zf);
+      float Cout = b->buf[gi].v[1] * (1.0f - xf) * (1.0f - yf) * (1.0f - zf)
+                   + b->buf[gi + ox].v[1] * (xf) * (1.0f - yf) * (1.0f - zf)
+                   + b->buf[gi + oy].v[1] * (1.0f - xf) * (yf) * (1.0f - zf)
+                   + b->buf[gi + ox + oy].v[1] * (xf) * (yf) * (1.0f - zf)
+                   + b->buf[gi + oz].v[1] * (1.0f - xf) * (1.0f - yf) * (zf)
+                   + b->buf[gi + ox + oz].v[1] * (xf) * (1.0f - yf) * (zf)
+                   + b->buf[gi + oy + oz].v[1] * (1.0f - xf) * (yf) * (zf)
+                   + b->buf[gi + ox + oy + oz].v[1] * (xf) * (yf) * (zf);
 
-        const float weight = b->buf[gi].weight[c] * (1.0f - xf) * (1.0f - yf) * (1.0f - zf)
-                             + b->buf[gi + ox].weight[c] * (xf) * (1.0f - yf) * (1.0f - zf)
-                             + b->buf[gi + oy].weight[c] * (1.0f - xf) * (yf) * (1.0f - zf)
-                             + b->buf[gi + ox + oy].weight[c] * (xf) * (yf) * (1.0f - zf)
-                             + b->buf[gi + oz].weight[c] * (1.0f - xf) * (1.0f - yf) * (zf)
-                             + b->buf[gi + ox + oz].weight[c] * (xf) * (1.0f - yf) * (zf)
-                             + b->buf[gi + oy + oz].weight[c] * (1.0f - xf) * (yf) * (zf)
-                             + b->buf[gi + ox + oy + oz].weight[c] * (xf) * (yf) * (zf);
+      float Hout = b->buf[gi].v[2] * (1.0f - xf) * (1.0f - yf) * (1.0f - zf)
+                   + b->buf[gi + ox].v[2] * (xf) * (1.0f - yf) * (1.0f - zf)
+                   + b->buf[gi + oy].v[2] * (1.0f - xf) * (yf) * (1.0f - zf)
+                   + b->buf[gi + ox + oy].v[2] * (xf) * (yf) * (1.0f - zf)
+                   + b->buf[gi + oz].v[2] * (1.0f - xf) * (1.0f - yf) * (zf)
+                   + b->buf[gi + ox + oz].v[2] * (xf) * (1.0f - yf) * (zf)
+                   + b->buf[gi + oy + oz].v[2] * (1.0f - xf) * (yf) * (zf)
+                   + b->buf[gi + ox + oy + oz].v[2] * (xf) * (yf) * (zf);
 
-        // out[index + c] = (weight > 0.0f) ? Vout / weight : Vin;
-        out[index + c] = (weight > 0.0f) ? Vin * (1.0f - blend) + Vout * blend : Vin;
-      }
+      float Cin = SQRT3 * (Rin - Gin);
+      float Hin = 2.0f * Bin - Rin - Gin;
+      const float ratio = sqrtf((Cout * Cout + Hout * Hout) / (Cin * Cin + Hin * Hin));
+      Cout *= ratio;
+      Hout *= ratio;
+
+      const float weight = b->buf[gi].weight[0] * (1.0f - xf) * (1.0f - yf) * (1.0f - zf)
+                           + b->buf[gi + ox].weight[0] * (xf) * (1.0f - yf) * (1.0f - zf)
+                           + b->buf[gi + oy].weight[0] * (1.0f - xf) * (yf) * (1.0f - zf)
+                           + b->buf[gi + ox + oy].weight[0] * (xf) * (yf) * (1.0f - zf)
+                           + b->buf[gi + oz].weight[0] * (1.0f - xf) * (1.0f - yf) * (zf)
+                           + b->buf[gi + ox + oz].weight[0] * (xf) * (1.0f - yf) * (zf)
+                           + b->buf[gi + oy + oz].weight[0] * (1.0f - xf) * (yf) * (zf)
+                           + b->buf[gi + ox + oy + oz].weight[0] * (xf) * (yf) * (zf);
+
+      const float Rout = L - Hout / 6.0f + Cout / SQRT12;
+      const float Gout = L - Hout / 6.0f - Cout / SQRT12;
+      const float Bout = L + Hout / 3.0f;
+
+      out[index + 0] = (weight > 0.0f) ? Rin * (1.0f - blend) + Rout * blend : Rin;
+      out[index + 1] = (weight > 0.0f) ? Gin * (1.0f - blend) + Gout * blend : Gin;
+      out[index + 2] = (weight > 0.0f) ? Bin * (1.0f - blend) + Bout * blend : Bin;
+
+      //       out[index + 0] = Rout;
+      //       out[index + 1] = Gout;
+      //       out[index + 2] = Bout;
     }
   }
 }
