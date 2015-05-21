@@ -143,7 +143,7 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
       = (float *)dt_alloc_align(16, (size_t)piece->colors * roi_out->height * roi_out->width * sizeof(float));
   memset(tmp, 0, (size_t)piece->colors * roi_out->height * roi_out->width * sizeof(float));
 
-  // highlight_data_weight?
+  // weight only (stupid edge-avoidance)
   float *tmp2 = (float *)dt_alloc_align(16, (size_t)roi_out->height * roi_out->width * sizeof(float));
   memset(tmp2, 0, (size_t)roi_out->height * roi_out->width * sizeof(float));
 
@@ -222,17 +222,81 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
   dt_free_align(tmp2);
   tmp2 = NULL;
 
-  const float radius_spatial = fmax(0.1f, d->spatial);
-  const float sigma_spatial = radius_spatial * roi_in->scale / piece->iscale;
+  if(0)
+  {
+    memcpy(ovoid, tmp, (size_t)piece->colors * roi_out->height * roi_out->width * sizeof(float));
+    goto exit;
+  }
 
-  g = dt_gaussian_init(roi_out->width, roi_out->height, piece->colors, Labmax, Labmin, sigma_spatial,
-                       d->order);
+  dt_iop_roi_t roi = *roi_in;
+  roi.x = roi.y = 0;
+  roi.scale = 1.0f;
+
+  dt_iop_roi_t roo = *roi_out;
+  roo.x = roo.y = 0;
+  roo.scale = 0.50f;
+  // roo.scale = 0.25f;
+  roo.width = roundf(roi_out->width * roo.scale);
+  roo.height = roundf(roi_out->height * roo.scale);
+
+  float *tmp_downsampled = (float *)dt_alloc_align(16, (size_t)roo.width * roo.height * 4 * sizeof(float));
+
+  dt_iop_clip_and_zoom_roi(tmp_downsampled, tmp, &roo, &roi, roo.width, roi.width);
+
+  if(0)
+  {
+    for(int j = 0; j < roo.height; j++)
+    {
+      const float *in = (const float *)tmp_downsampled + (size_t)4 * roo.width * j;
+      float *out = (float *)ovoid + (size_t)4 * roi_out->width * j;
+      for(int i = 0; i < roo.width; i++, in += 4, out += 4)
+      {
+        out[0] = in[0];
+        out[1] = in[1];
+        out[2] = in[2];
+      }
+    }
+    goto exit;
+  }
+
+  const float radius_spatial = fmax(0.1f, d->spatial);
+  const float sigma_spatial = radius_spatial * roo.scale / piece->iscale;
+
+  g = dt_gaussian_init(roo.width, roo.height, piece->colors, Labmax, Labmin, sigma_spatial, d->order);
   if(!g) return;
-  dt_gaussian_blur_4c(g, tmp, ovoid);
+
+  float *tmp_downsampled_blurred
+      = (float *)dt_alloc_align(16, (size_t)roo.width * roo.height * 4 * sizeof(float));
+
+  dt_gaussian_blur_4c(g, tmp_downsampled, tmp_downsampled_blurred);
   dt_gaussian_free(g);
 
-  // memcpy(ovoid, tmp, (size_t)piece->colors * roi_out->height * roi_out->width * sizeof(float));
-  goto exit;
+  if(1)
+  {
+    for(int j = 0; j < roo.height; j++)
+    {
+      const float *in = (const float *)tmp_downsampled + (size_t)4 * roo.width * j;
+      float *out = (float *)ovoid + (size_t)4 * roi_out->width * j;
+      for(int i = 0; i < roo.width; i++, in += 4, out += 4)
+      {
+        out[0] = in[0];
+        out[1] = in[1];
+        out[2] = in[2];
+      }
+
+      const float *in2 = (const float *)tmp_downsampled_blurred + (size_t)4 * roo.width * j;
+      for(int i = 0; i < roo.width; i++, in2 += 4, out += 4)
+      {
+        out[0] = in2[0];
+        out[1] = in2[1];
+        out[2] = in2[2];
+      }
+    }
+    goto exit;
+  }
+
+  dt_free_align(tmp_downsampled);
+  tmp_downsampled = NULL;
 
   for(int j = 0; j < roi_out->height; j++)
   {
@@ -251,6 +315,12 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
   }
 
 exit:
+  dt_free_align(tmp_downsampled_blurred);
+  tmp_downsampled_blurred = NULL;
+
+  dt_free_align(tmp_downsampled);
+  tmp_downsampled = NULL;
+
   dt_free_align(tmp2);
   tmp2 = NULL;
 
@@ -361,13 +431,9 @@ void init(dt_iop_module_t *module)
   module->priority = 134; // module order created by iop_dependencies.py, do not edit!
   module->params_size = sizeof(dt_iop_highlightsinpaint_params_t);
   module->gui_data = NULL;
-  dt_iop_highlightsinpaint_params_t tmp = (dt_iop_highlightsinpaint_params_t){.threshold = 1.0f,
-                                                                              .order = 0,
-                                                                              .radius = 4,
-                                                                              .threshold2 = 0.50f,
-                                                                              .radius2 = 4,
-                                                                              .spatial = 400.0f,
-                                                                              .range = 10.0f };
+  dt_iop_highlightsinpaint_params_t tmp = (dt_iop_highlightsinpaint_params_t){
+    .threshold = 1.0f, .order = 0, .radius = 4, .threshold2 = 0.50f, .radius2 = 4, .spatial = 2, .range = 10.0f
+  };
   memcpy(module->params, &tmp, sizeof(dt_iop_highlightsinpaint_params_t));
   memcpy(module->default_params, &tmp, sizeof(dt_iop_highlightsinpaint_params_t));
 }
@@ -392,7 +458,7 @@ void gui_init(struct dt_iop_module_t *self)
   g->radius = dt_bauhaus_slider_new_with_range(self, 0.1f, 200.0f, 0.1f, p->radius, 2);
   g->threshold2 = dt_bauhaus_slider_new_with_range(self, 0.0f, 2.0f, 0.01f, p->threshold2, 2);
   g->radius2 = dt_bauhaus_slider_new_with_range(self, 0.1f, 200.0f, 0.1f, p->radius2, 2);
-  g->spatial = dt_bauhaus_slider_new_with_range(self, 0.0f, 1000.0f, 1.0f, p->spatial, 2);
+  g->spatial = dt_bauhaus_slider_new_with_range(self, 0.1f, 1000.0f, 1.0f, p->spatial, 2);
   g->range = dt_bauhaus_slider_new_with_range(self, 0.0f, 50.0f, 0.1f, p->range, 2);
 
   dt_bauhaus_widget_set_label(g->threshold, NULL, _("clipping threshold"));
