@@ -228,75 +228,15 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
     goto exit;
   }
 
-  dt_iop_roi_t roi = *roi_in;
-  roi.x = roi.y = 0;
-  roi.scale = 1.0f;
-
-  dt_iop_roi_t roo = *roi_out;
-  roo.x = roo.y = 0;
-  roo.scale = 0.50f;
-  // roo.scale = 0.25f;
-  roo.width = roundf(roi_out->width * roo.scale);
-  roo.height = roundf(roi_out->height * roo.scale);
-
-  float *tmp_downsampled = (float *)dt_alloc_align(16, (size_t)roo.width * roo.height * 4 * sizeof(float));
-
-  dt_iop_clip_and_zoom_roi(tmp_downsampled, tmp, &roo, &roi, roo.width, roi.width);
-
-  if(0)
-  {
-    for(int j = 0; j < roo.height; j++)
-    {
-      const float *in = (const float *)tmp_downsampled + (size_t)4 * roo.width * j;
-      float *out = (float *)ovoid + (size_t)4 * roi_out->width * j;
-      for(int i = 0; i < roo.width; i++, in += 4, out += 4)
-      {
-        out[0] = in[0];
-        out[1] = in[1];
-        out[2] = in[2];
-      }
-    }
-    goto exit;
-  }
-
   const float radius_spatial = fmax(0.1f, d->spatial);
-  const float sigma_spatial = radius_spatial * roo.scale / piece->iscale;
+  const float sigma_spatial = radius_spatial * roi_in->scale / piece->iscale;
 
-  g = dt_gaussian_init(roo.width, roo.height, piece->colors, Labmax, Labmin, sigma_spatial, d->order);
+  g = dt_gaussian_init(roi_out->width, roi_out->height, piece->colors, Labmax, Labmin, sigma_spatial,
+                       d->order);
   if(!g) return;
 
-  float *tmp_downsampled_blurred
-      = (float *)dt_alloc_align(16, (size_t)roo.width * roo.height * 4 * sizeof(float));
-
-  dt_gaussian_blur_4c(g, tmp_downsampled, tmp_downsampled_blurred);
+  dt_gaussian_blur_4c(g, tmp, ovoid);
   dt_gaussian_free(g);
-
-  if(1)
-  {
-    for(int j = 0; j < roo.height; j++)
-    {
-      const float *in = (const float *)tmp_downsampled + (size_t)4 * roo.width * j;
-      float *out = (float *)ovoid + (size_t)4 * roi_out->width * j;
-      for(int i = 0; i < roo.width; i++, in += 4, out += 4)
-      {
-        out[0] = in[0];
-        out[1] = in[1];
-        out[2] = in[2];
-      }
-
-      const float *in2 = (const float *)tmp_downsampled_blurred + (size_t)4 * roo.width * j;
-      for(int i = 0; i < roo.width; i++, in2 += 4, out += 4)
-      {
-        out[0] = in2[0];
-        out[1] = in2[1];
-        out[2] = in2[2];
-      }
-    }
-    goto exit;
-  }
-
-  dt_free_align(tmp_downsampled);
-  tmp_downsampled = NULL;
 
   for(int j = 0; j < roi_out->height; j++)
   {
@@ -304,23 +244,38 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
     float *out = (float *)ovoid + (size_t)4 * roi_out->width * j;
     for(int i = 0; i < roi_out->width; i++, in += 4, out += 4)
     {
-      const float R = in[0], G = in[1], B = in[2];
-      if(!(R > threshold || G > threshold || B > threshold))
-      {
-        out[0] = in[0];
-        out[1] = in[1];
-        out[2] = in[2];
-      }
+      //       const float R = in[0], G = in[1], B = in[2];
+
+      const float L = (in[0] + in[1] + in[2]) / 3.0f;
+
+      const float m = threshold2;
+      // const float m = (threshold + threshold2) / 2.0f;
+      const float M = threshold;
+      const float k = 1.0f / (M - m), b = -m / (M - m);
+
+      const float blend = CLAMPS(k * L + b, 0.0f, 1.0f);
+      // if(blend == 0.0f) continue;
+
+      //       if(!(R > threshold || G > threshold || B > threshold))
+      //       {
+      //         out[0] = in[0];
+      //         out[1] = in[1];
+      //         out[2] = in[2];
+      //       }
+      //       else
+      //       {
+      //         out[0] /= out[3];
+      //         out[1] /= out[3];
+      //         out[2] /= out[3];
+      //       }
+
+      out[0] = in[0] * (1.0f - blend) + (out[0] / out[3]) * blend;
+      out[1] = in[1] * (1.0f - blend) + (out[1] / out[3]) * blend;
+      out[2] = in[2] * (1.0f - blend) + (out[2] / out[3]) * blend;
     }
   }
 
 exit:
-  dt_free_align(tmp_downsampled_blurred);
-  tmp_downsampled_blurred = NULL;
-
-  dt_free_align(tmp_downsampled);
-  tmp_downsampled = NULL;
-
   dt_free_align(tmp2);
   tmp2 = NULL;
 
@@ -390,10 +345,10 @@ void commit_params(struct dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pix
   dt_iop_highlightsinpaint_params_t *p = (dt_iop_highlightsinpaint_params_t *)p1;
   dt_iop_highlightsinpaint_data_t *d = (dt_iop_highlightsinpaint_data_t *)piece->data;
 
-  d->threshold = p->threshold;
+  d->threshold = MAX(p->threshold, p->threshold2);
   d->order = p->order;
   d->radius = p->radius;
-  d->threshold2 = p->threshold2;
+  d->threshold2 = MIN(p->threshold2, p->threshold);
   d->radius2 = p->radius2;
   d->spatial = p->spatial;
   d->range = p->range;
@@ -419,6 +374,9 @@ void gui_update(struct dt_iop_module_t *self)
   dt_iop_highlightsinpaint_gui_data_t *g = (dt_iop_highlightsinpaint_gui_data_t *)self->gui_data;
   dt_iop_highlightsinpaint_params_t *p = (dt_iop_highlightsinpaint_params_t *)module->params;
   dt_bauhaus_slider_set(g->threshold, p->threshold);
+  dt_bauhaus_slider_set(g->radius, p->radius);
+  dt_bauhaus_slider_set(g->threshold2, p->threshold2);
+  dt_bauhaus_slider_set(g->radius2, p->radius2);
   dt_bauhaus_slider_set(g->spatial, p->spatial);
   dt_bauhaus_slider_set(g->range, p->range);
 }
@@ -428,12 +386,19 @@ void init(dt_iop_module_t *module)
   module->params = malloc(sizeof(dt_iop_highlightsinpaint_params_t));
   module->default_params = malloc(sizeof(dt_iop_highlightsinpaint_params_t));
   module->default_enabled = 0;
+  // just after demosaic
   module->priority = 134; // module order created by iop_dependencies.py, do not edit!
+  // just after lens
+  // module->priority = 251; // module order created by iop_dependencies.py, do not edit!
   module->params_size = sizeof(dt_iop_highlightsinpaint_params_t);
   module->gui_data = NULL;
-  dt_iop_highlightsinpaint_params_t tmp = (dt_iop_highlightsinpaint_params_t){
-    .threshold = 1.0f, .order = 0, .radius = 4, .threshold2 = 0.50f, .radius2 = 4, .spatial = 2, .range = 10.0f
-  };
+  dt_iop_highlightsinpaint_params_t tmp = (dt_iop_highlightsinpaint_params_t){.threshold = 1.0f,
+                                                                              .order = 0,
+                                                                              .radius = 4.0f,
+                                                                              .threshold2 = 0.50f,
+                                                                              .radius2 = 4.0f,
+                                                                              .spatial = 500.0f,
+                                                                              .range = 10.0f };
   memcpy(module->params, &tmp, sizeof(dt_iop_highlightsinpaint_params_t));
   memcpy(module->default_params, &tmp, sizeof(dt_iop_highlightsinpaint_params_t));
 }
@@ -455,9 +420,9 @@ void gui_init(struct dt_iop_module_t *self)
   self->widget = gtk_box_new(GTK_ORIENTATION_VERTICAL, DT_BAUHAUS_SPACE);
 
   g->threshold = dt_bauhaus_slider_new_with_range(self, 0.0f, 2.0f, 0.01f, p->threshold, 2);
-  g->radius = dt_bauhaus_slider_new_with_range(self, 0.1f, 200.0f, 0.1f, p->radius, 2);
+  g->radius = dt_bauhaus_slider_new_with_range(self, 0.1f, 1000.0f, 0.1f, p->radius, 2);
   g->threshold2 = dt_bauhaus_slider_new_with_range(self, 0.0f, 2.0f, 0.01f, p->threshold2, 2);
-  g->radius2 = dt_bauhaus_slider_new_with_range(self, 0.1f, 200.0f, 0.1f, p->radius2, 2);
+  g->radius2 = dt_bauhaus_slider_new_with_range(self, 0.1f, 1000.0f, 0.1f, p->radius2, 2);
   g->spatial = dt_bauhaus_slider_new_with_range(self, 0.1f, 1000.0f, 1.0f, p->spatial, 2);
   g->range = dt_bauhaus_slider_new_with_range(self, 0.0f, 50.0f, 0.1f, p->range, 2);
 
