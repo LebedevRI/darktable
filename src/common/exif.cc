@@ -1636,6 +1636,15 @@ int dt_exif_xmp_read(dt_image_t *img, const char *filename, const int history_on
       img->legacy_flip.legacy = 0;
     }
 
+    // According to the Exif specs DateTime is to be set to the last modification time while
+    // DateTimeOriginal is to be kept.
+    // For us "keeping" it means to write out what we have in DB to support people adding a time offset in
+    // the geotagging module.
+    if((pos = xmpData.findKey(Exiv2::XmpKey("Xmp.exif.DateTimeOriginal"))) != xmpData.end() && pos->size())
+    {
+      g_strlcpy(img->exif_datetime_taken, pos->toString().c_str(), 20);
+    }
+
     // GPS data
     if((pos = xmpData.findKey(Exiv2::XmpKey("Xmp.exif.GPSLatitude"))) != xmpData.end())
     {
@@ -1910,12 +1919,12 @@ static void dt_exif_xmp_read_data(Exiv2::XmpData &xmpData, const int imgid)
   const int xmp_version = 1;
   int stars = 1, raw_params = 0, history_end = -1;
   double longitude = NAN, latitude = NAN, altitude = NAN;
-  gchar *filename = NULL;
+  gchar *filename = NULL, *datetime_taken = NULL;
   // get stars and raw params from db
   sqlite3_stmt *stmt;
   DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db), "select filename, flags, raw_parameters, "
-                                                             "longitude, latitude, altitude, history_end "
-                                                             "from images where id = ?1",
+                                                             "longitude, latitude, altitude, history_end, "
+                                                             "datetime_taken from images where id = ?1",
                               -1, &stmt, NULL);
   DT_DEBUG_SQLITE3_BIND_INT(stmt, 1, imgid);
   if(sqlite3_step(stmt) == SQLITE_ROW)
@@ -1927,11 +1936,21 @@ static void dt_exif_xmp_read_data(Exiv2::XmpData &xmpData, const int imgid)
     if(sqlite3_column_type(stmt, 4) == SQLITE_FLOAT) latitude = sqlite3_column_double(stmt, 4);
     if(sqlite3_column_type(stmt, 5) == SQLITE_FLOAT) altitude = sqlite3_column_double(stmt, 5);
     history_end = sqlite3_column_int(stmt, 6);
+    datetime_taken = (gchar *)sqlite3_column_text(stmt, 7);
   }
   xmpData["Xmp.xmp.Rating"] = ((stars & 0x7) == 6) ? -1 : (stars & 0x7); // rejected image = -1, others = 0..5
 
   // The original file name
   if(filename) xmpData["Xmp.xmpMM.DerivedFrom"] = filename;
+
+  // According to the Exif specs DateTime is to be set to the last modification time while
+  // DateTimeOriginal is to be kept.
+  // For us "keeping" it means to write out what we have in DB to support people adding a time offset in
+  // the geotagging module.
+  if(datetime_taken)
+  {
+    xmpData["Xmp.exif.DateTimeOriginal"] = datetime_taken;
+  }
 
   // GPS data
   if(!std::isnan(longitude) && !std::isnan(latitude))
