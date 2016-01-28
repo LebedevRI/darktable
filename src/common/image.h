@@ -115,7 +115,8 @@ typedef enum dt_image_loader_t
   LOADER_RAWSPEED = 9,
 } dt_image_loader_t;
 
-struct dt_cache_entry_t;
+typedef struct dt_cache_entry dt_cache_entry_t;
+
 // TODO: add color labels and such as cachable
 // __attribute__ ((aligned (128)))
 typedef struct dt_image_t
@@ -184,7 +185,7 @@ typedef struct dt_image_t
   /* White balance coeffs from the raw */
   float wb_coeffs[4];
   /* convenience pointer back into the image cache, so we can return dt_image_t* there directly. */
-  struct dt_cache_entry_t *cache_entry;
+  dt_cache_entry_t *cache_entry;
 } dt_image_t;
 
 // image buffer operations:
