@@ -26,6 +26,36 @@
 #include <inttypes.h>
 #include <assert.h>
 
+static void *dt_cache_hs_malloc(size_t size)
+{
+  return malloc(size);
+}
+
+static void dt_cache_hs_free(void *p, size_t size, bool defer)
+{
+  (void)size;
+  (void)defer;
+  free(p);
+}
+
+static struct ck_malloc dt_cache_hs_allocator = {.malloc = dt_cache_hs_malloc, .free = dt_cache_hs_free };
+
+static unsigned long dt_cache_hs_hash(const void *object, unsigned long seed)
+{
+  const struct dt_cache_entry *entry = object;
+
+  return entry->key;
+}
+
+static bool dt_cache_hs_compare(const void *previous, const void *compare)
+{
+  const struct dt_cache_entry *previous_entry = previous;
+  const struct dt_cache_entry *compare_entry = compare;
+
+  return (previous_entry->key == compare_entry->key);
+}
+
+
 // this implements a concurrent LRU cache
 
 void dt_cache_init(
@@ -42,12 +72,15 @@ void dt_cache_init(
   cache->allocate_data = 0;
   cache->cleanup = 0;
   cache->cleanup_data = 0;
-  cache->hashtable = g_hash_table_new(0, 0);
+
+  // capacity must be >= 8 (CK_RHS_PROBE_L1), at least for <ck-0.5.0. else it crashes.
+  ck_rhs_init(&(cache->hashtable), CK_RHS_MODE_SPMC | CK_RHS_MODE_OBJECT | CK_RHS_MODE_READ_MOSTLY,
+              dt_cache_hs_hash, dt_cache_hs_compare, &dt_cache_hs_allocator, 8, /* unused */ 0);
 }
 
 void dt_cache_cleanup(dt_cache_t *cache)
 {
-  g_hash_table_destroy(cache->hashtable);
+  ck_rhs_destroy(&(cache->hashtable));
 
   struct dt_cache_entry *entry;
   while((entry = CK_STAILQ_FIRST(&(cache->lru))) != NULL)
@@ -68,9 +101,10 @@ void dt_cache_cleanup(dt_cache_t *cache)
 int32_t dt_cache_contains(dt_cache_t *cache, const uint32_t key)
 {
   dt_pthread_mutex_lock(&cache->lock);
-  int32_t result = g_hash_table_contains(cache->hashtable, GINT_TO_POINTER(key));
+  struct dt_cache_entry _key = {.key = key };
+  void *value = ck_rhs_get(&(cache->hashtable), key, &_key);
   dt_pthread_mutex_unlock(&cache->lock);
-  return result;
+  return (value != NULL);
 }
 
 int dt_cache_for_all(
@@ -79,14 +113,12 @@ int dt_cache_for_all(
     void *user_data)
 {
   dt_pthread_mutex_lock(&cache->lock);
-  GHashTableIter iter;
-  gpointer key, value;
-
-  g_hash_table_iter_init (&iter, cache->hashtable);
-  while (g_hash_table_iter_next (&iter, &key, &value))
+  void *value;
+  ck_rhs_iterator_t iterator = CK_RHS_ITERATOR_INITIALIZER;
+  while(ck_rhs_next(&(cache->hashtable), &iterator, &value))
   {
     dt_cache_entry_t *entry = (dt_cache_entry_t *)value;
-    const int err = process(GPOINTER_TO_INT(key), entry->data, user_data);
+    const int err = process(entry->key, entry->data, user_data);
     if(err)
     {
       dt_pthread_mutex_unlock(&cache->lock);
@@ -101,17 +133,17 @@ int dt_cache_for_all(
 // never attempt to allocate a new slot.
 dt_cache_entry_t *dt_cache_testget(dt_cache_t *cache, const uint32_t key, char mode)
 {
-  gpointer orig_key, value;
-  gboolean res;
-  int result;
   double start = dt_get_wtime();
   dt_pthread_mutex_lock(&cache->lock);
-  res = g_hash_table_lookup_extended(
-      cache->hashtable, GINT_TO_POINTER(key), &orig_key, &value);
-  if(res)
+
+  struct dt_cache_entry _key = {.key = key };
+  void *value = ck_rhs_get(&(cache->hashtable), key, &_key);
+
+  if(value)
   {
     dt_cache_entry_t *entry = (dt_cache_entry_t *)value;
     // lock the cache entry
+    int result;
     if(mode == 'w') result = dt_pthread_rwlock_trywrlock(&entry->lock);
     else            result = dt_pthread_rwlock_tryrdlock(&entry->lock);
     if(result)
@@ -143,17 +175,17 @@ dt_cache_entry_t *dt_cache_testget(dt_cache_t *cache, const uint32_t key, char m
 // found using the given key later on.
 dt_cache_entry_t *dt_cache_get_with_caller(dt_cache_t *cache, const uint32_t key, char mode, const char *file, int line)
 {
-  gpointer orig_key, value;
-  gboolean res;
-  int result;
   double start = dt_get_wtime();
 restart:
   dt_pthread_mutex_lock(&cache->lock);
-  res = g_hash_table_lookup_extended(
-      cache->hashtable, GINT_TO_POINTER(key), &orig_key, &value);
-  if(res)
+
+  struct dt_cache_entry _key = {.key = key };
+  void *value = ck_rhs_get(&(cache->hashtable), key, &_key);
+
+  if(value)
   { // yay, found. read lock and pass on.
     dt_cache_entry_t *entry = (dt_cache_entry_t *)value;
+    int result;
     if(mode == 'w') result = dt_pthread_rwlock_trywrlock_with_caller(&entry->lock, file, line);
     else            result = dt_pthread_rwlock_tryrdlock_with_caller(&entry->lock, file, line);
     if(result)
@@ -203,7 +235,7 @@ restart:
   entry->cost = cache->entry_size;
   entry->key = key;
   entry->_lock_demoting = 0;
-  g_hash_table_insert(cache->hashtable, GINT_TO_POINTER(key), entry);
+  ck_rhs_put(&(cache->hashtable), key, entry);
   // if allocate callback is given, always return a write lock
   int write = ((mode == 'w') || cache->allocate);
   if(cache->allocate)
@@ -227,23 +259,21 @@ restart:
 
 int dt_cache_remove(dt_cache_t *cache, const uint32_t key)
 {
-  gpointer orig_key, value;
-  gboolean res;
-  int result;
-  dt_cache_entry_t *entry;
 restart:
   dt_pthread_mutex_lock(&cache->lock);
 
-  res = g_hash_table_lookup_extended(
-      cache->hashtable, GINT_TO_POINTER(key), &orig_key, &value);
-  entry = (dt_cache_entry_t *)value;
-  if(!res)
+  struct dt_cache_entry _key = {.key = key };
+  void *value = ck_rhs_get(&(cache->hashtable), key, &_key);
+
+  if(!value)
   { // not found in cache, not deleting.
     dt_pthread_mutex_unlock(&cache->lock);
     return 1;
   }
+
   // need write lock to be able to delete:
-  result = dt_pthread_rwlock_trywrlock(&entry->lock);
+  dt_cache_entry_t *entry = (dt_cache_entry_t *)value;
+  int result = dt_pthread_rwlock_trywrlock(&entry->lock);
   if(result)
   {
     dt_pthread_mutex_unlock(&cache->lock);
@@ -260,7 +290,7 @@ restart:
     goto restart;
   }
 
-  gboolean removed = g_hash_table_remove(cache->hashtable, GINT_TO_POINTER(key));
+  gboolean removed = (entry == ck_rhs_remove(&(cache->hashtable), key, entry));
   (void)removed; // make non-assert compile happy
   assert(removed);
 
@@ -301,7 +331,9 @@ void dt_cache_gc(dt_cache_t *cache, const float fill_ratio)
     }
 
     // delete!
-    g_hash_table_remove(cache->hashtable, GINT_TO_POINTER(entry->key));
+    gboolean removed = (entry == ck_rhs_remove(&(cache->hashtable), entry->key, entry));
+    (void)removed; // make non-assert compile happy
+    assert(removed);
     CK_STAILQ_REMOVE(&(cache->lru), entry, dt_cache_entry, list_entry);
     cache->cost -= entry->cost;
 
@@ -313,6 +345,11 @@ void dt_cache_gc(dt_cache_t *cache, const float fill_ratio)
     dt_pthread_rwlock_destroy(&entry->lock);
     g_slice_free1(sizeof(*entry), entry);
   }
+
+  // in <=ck-0.5.1, in CK_RHS_MODE_READ_MOSTLY, ck_rhs_gc() was broken
+  // (see concurrencykit/ck@7f625a6fe16e23e487d1745405f04a7e62dc01b4)
+  // ck_rhs_gc(&(cache->hashtable));
+  ck_rhs_rebuild(&(cache->hashtable));
 }
 
 void dt_cache_release(dt_cache_t *cache, dt_cache_entry_t *entry)

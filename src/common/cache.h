@@ -23,6 +23,7 @@
 #pragma GCC diagnostic warning "-fpermissive"
 #include <ck_pr.h>
 #include <ck_queue.h>
+#include <ck_rhs.h>
 #pragma GCC diagnostic pop
 
 #include "common/dtpthread.h"
@@ -50,7 +51,7 @@ typedef struct dt_cache_t
   size_t cost;       // user supplied cost per cache line (bytes?)
   size_t cost_quota; // quota to try and meet. but don't use as hard limit.
 
-  GHashTable *hashtable; // stores (key, entry) pairs
+  ck_rhs_t hashtable; // stores (key, entry) pairs
 
   // last element is most recently used, first is about to be kicked from cache.
   // NOTE: TAILQ would be better, but it is not yet implemented in CK
