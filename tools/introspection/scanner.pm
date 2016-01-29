@@ -245,7 +245,7 @@ sub handle_include
 
   my $filename = join('', @buf);
 
-  if($filename =~ /^iop|^common/)
+  if($filename =~ /^iop|^common/ and not $filename =~ /^common\/cache.h$/)
   {
     # add the current filename and lineno to the code stream so we
     # can reset these when the included file is scanned
