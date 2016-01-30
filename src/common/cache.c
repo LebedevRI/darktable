@@ -63,11 +63,12 @@ void dt_cache_init(
     size_t entry_size,
     size_t cost_quota)
 {
+  ck_spinlock_fas_init(&(cache->spinlock));
+
   cache->cost = 0;
   CK_STAILQ_INIT(&(cache->lru));
   cache->entry_size = entry_size;
   cache->cost_quota = cost_quota;
-  dt_pthread_mutex_init(&cache->lock, 0);
   cache->allocate = 0;
   cache->allocate_data = 0;
   cache->cleanup = 0;
@@ -94,16 +95,14 @@ void dt_cache_cleanup(dt_cache_t *cache)
     dt_pthread_rwlock_destroy(&entry->lock);
     g_slice_free1(sizeof(*entry), entry);
   }
-
-  dt_pthread_mutex_destroy(&cache->lock);
 }
 
 int32_t dt_cache_contains(dt_cache_t *cache, const uint32_t key)
 {
-  dt_pthread_mutex_lock(&cache->lock);
+  ck_spinlock_fas_lock(&(cache->spinlock));
   struct dt_cache_entry _key = {.key = key };
   void *value = ck_rhs_get(&(cache->hashtable), key, &_key);
-  dt_pthread_mutex_unlock(&cache->lock);
+  ck_spinlock_fas_unlock(&(cache->spinlock));
   return (value != NULL);
 }
 
@@ -112,7 +111,7 @@ int dt_cache_for_all(
     int (*process)(const uint32_t key, const void *data, void *user_data),
     void *user_data)
 {
-  dt_pthread_mutex_lock(&cache->lock);
+  ck_spinlock_fas_lock(&(cache->spinlock));
   void *value;
   ck_rhs_iterator_t iterator = CK_RHS_ITERATOR_INITIALIZER;
   while(ck_rhs_next(&(cache->hashtable), &iterator, &value))
@@ -121,11 +120,11 @@ int dt_cache_for_all(
     const int err = process(entry->key, entry->data, user_data);
     if(err)
     {
-      dt_pthread_mutex_unlock(&cache->lock);
+      ck_spinlock_fas_unlock(&(cache->spinlock));
       return err;
     }
   }
-  dt_pthread_mutex_unlock(&cache->lock);
+  ck_spinlock_fas_unlock(&(cache->spinlock));
   return 0;
 }
 
@@ -134,7 +133,7 @@ int dt_cache_for_all(
 dt_cache_entry_t *dt_cache_testget(dt_cache_t *cache, const uint32_t key, char mode)
 {
   double start = dt_get_wtime();
-  dt_pthread_mutex_lock(&cache->lock);
+  ck_spinlock_fas_lock(&(cache->spinlock));
 
   struct dt_cache_entry _key = {.key = key };
   void *value = ck_rhs_get(&(cache->hashtable), key, &_key);
@@ -149,7 +148,7 @@ dt_cache_entry_t *dt_cache_testget(dt_cache_t *cache, const uint32_t key, char m
     if(result)
     { // need to give up mutex so other threads have a chance to get in between and
       // free the lock we're trying to acquire:
-      dt_pthread_mutex_unlock(&cache->lock);
+      ck_spinlock_fas_unlock(&(cache->spinlock));
       return 0;
     }
 
@@ -157,13 +156,13 @@ dt_cache_entry_t *dt_cache_testget(dt_cache_t *cache, const uint32_t key, char m
     CK_STAILQ_REMOVE(&(cache->lru), entry, dt_cache_entry, list_entry);
     CK_STAILQ_INSERT_TAIL(&(cache->lru), entry, list_entry);
 
-    dt_pthread_mutex_unlock(&cache->lock);
+    ck_spinlock_fas_unlock(&(cache->spinlock));
     double end = dt_get_wtime();
     if(end - start > 0.1)
       fprintf(stderr, "try+ wait time %.06fs mode %c \n", end - start, mode);
     return entry;
   }
-  dt_pthread_mutex_unlock(&cache->lock);
+  ck_spinlock_fas_unlock(&(cache->spinlock));
   double end = dt_get_wtime();
   if(end - start > 0.1)
     fprintf(stderr, "try- wait time %.06fs\n", end - start);
@@ -177,7 +176,7 @@ dt_cache_entry_t *dt_cache_get_with_caller(dt_cache_t *cache, const uint32_t key
 {
   double start = dt_get_wtime();
 restart:
-  dt_pthread_mutex_lock(&cache->lock);
+  ck_spinlock_fas_lock(&(cache->spinlock));
 
   struct dt_cache_entry _key = {.key = key };
   void *value = ck_rhs_get(&(cache->hashtable), key, &_key);
@@ -191,7 +190,7 @@ restart:
     if(result)
     { // need to give up mutex so other threads have a chance to get in between and
       // free the lock we're trying to acquire:
-      dt_pthread_mutex_unlock(&cache->lock);
+      ck_spinlock_fas_unlock(&(cache->spinlock));
       g_usleep(5);
       goto restart;
     }
@@ -200,7 +199,7 @@ restart:
     CK_STAILQ_REMOVE(&(cache->lru), entry, dt_cache_entry, list_entry);
     CK_STAILQ_INSERT_TAIL(&(cache->lru), entry, list_entry);
 
-    dt_pthread_mutex_unlock(&cache->lock);
+    ck_spinlock_fas_unlock(&(cache->spinlock));
 
 #ifdef _DEBUG
     const pthread_t writer = dt_pthread_rwlock_get_writer(&entry->lock);
@@ -250,7 +249,7 @@ restart:
   // put at end of lru list (most recently used):
   CK_STAILQ_INSERT_TAIL(&(cache->lru), entry, list_entry);
 
-  dt_pthread_mutex_unlock(&cache->lock);
+  ck_spinlock_fas_unlock(&(cache->spinlock));
   double end = dt_get_wtime();
   if(end - start > 0.1)
     fprintf(stderr, "wait time %.06fs\n", end - start);
@@ -260,14 +259,14 @@ restart:
 int dt_cache_remove(dt_cache_t *cache, const uint32_t key)
 {
 restart:
-  dt_pthread_mutex_lock(&cache->lock);
+  ck_spinlock_fas_lock(&(cache->spinlock));
 
   struct dt_cache_entry _key = {.key = key };
   void *value = ck_rhs_get(&(cache->hashtable), key, &_key);
 
   if(!value)
   { // not found in cache, not deleting.
-    dt_pthread_mutex_unlock(&cache->lock);
+    ck_spinlock_fas_unlock(&(cache->spinlock));
     return 1;
   }
 
@@ -276,7 +275,7 @@ restart:
   int result = dt_pthread_rwlock_trywrlock(&entry->lock);
   if(result)
   {
-    dt_pthread_mutex_unlock(&cache->lock);
+    ck_spinlock_fas_unlock(&(cache->spinlock));
     g_usleep(5);
     goto restart;
   }
@@ -285,7 +284,7 @@ restart:
   {
     // oops, we are currently demoting (rw -> r) lock to this entry in some thread. do not touch!
     dt_pthread_rwlock_unlock(&entry->lock);
-    dt_pthread_mutex_unlock(&cache->lock);
+    ck_spinlock_fas_unlock(&(cache->spinlock));
     g_usleep(5);
     goto restart;
   }
@@ -305,7 +304,7 @@ restart:
   cache->cost -= entry->cost;
   g_slice_free1(sizeof(*entry), entry);
 
-  dt_pthread_mutex_unlock(&cache->lock);
+  ck_spinlock_fas_unlock(&(cache->spinlock));
   return 0;
 }
 
