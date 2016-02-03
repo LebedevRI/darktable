@@ -759,6 +759,11 @@ if(BUILD_SLIDESHOW)
   endif(SDL_FOUND AND OPENGL_FOUND)
 endif(BUILD_SLIDESHOW)
 
+# build the test suite
+IF(BUILD_TESTS)
+  ADD_SUBDIRECTORY(tests)
+ENDIF()
+
 #
 # build darktable executable
 #

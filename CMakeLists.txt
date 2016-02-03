@@ -2,6 +2,15 @@ project(darktable CXX C)
 cmake_minimum_required(VERSION 2.6)
 cmake_policy(VERSION 2.6)
 
+INCLUDE(CMakeDependentOption)
+
+# Check if this is source package build
+if(NOT IS_DIRECTORY ${CMAKE_SOURCE_DIR}/.git)
+  set(SOURCE_PACKAGE 1)
+else()
+  set(SOURCE_PACKAGE 0)
+endif()
+
 option(USE_CAMERA_SUPPORT "Detect and use camera support if available." ON)
 option(USE_NLS "Build Native Language Support (using gettext)" ON)
 option(USE_COLORD "Enable colord support" ON)
@@ -26,6 +35,8 @@ option(USE_WEBP "Enable WebP export support" ON)
 option(BUILD_CMSTEST "Build a test program to check your system's color management setup" ON)
 option(USE_OPENEXR "Enable OpenEXR support" ON)
 option(BUILD_PRINT "Build the print module" ON)
+CMAKE_DEPENDENT_OPTION(BUILD_TESTS "Build test suite" ON "NOT SOURCE_PACKAGE" OFF)
+
 if(APPLE)
 	option(USE_MAC_INTEGRATION "Enable OS X integration" ON)
 else(APPLE)
@@ -79,13 +90,6 @@ if(WIN32)
   message("-- Win32 build detected, setting default features")
   set(USE_CAMERA_SUPPORT OFF)
 endif(WIN32)
-
-# Check if this is source package build
-if(NOT IS_DIRECTORY ${CMAKE_SOURCE_DIR}/.git)
-  set(SOURCE_PACKAGE 1)
-else()
-  set(SOURCE_PACKAGE 0)
-endif()
 
 #
 # Set package version
@@ -260,6 +264,12 @@ if(USE_OPENCL)
 else()
 	SET(HAVE_OPENCL 0)
 endif(USE_OPENCL)
+
+# build the test suite
+MESSAGE(STATUS "Build test suite: ${BUILD_TESTS}")
+IF(BUILD_TESTS)
+  enable_testing()
+ENDIF()
 
 #
 # Test SSE level
