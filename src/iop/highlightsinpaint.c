@@ -48,11 +48,13 @@ DT_MODULE_INTROSPECTION(1, dt_iop_highlightsinpaint_params_t)
 typedef struct dt_iop_highlightsinpaint_params_t
 {
   float clip;
+  float midtones;
 } dt_iop_highlightsinpaint_params_t;
 
 typedef struct dt_iop_highlightsinpaint_gui_data_t
 {
   GtkWidget *clip;
+  GtkWidget *midtones;
 } dt_iop_highlightsinpaint_gui_data_t;
 
 typedef dt_iop_highlightsinpaint_params_t dt_iop_highlightsinpaint_data_t;
@@ -169,7 +171,7 @@ static void process_clip(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, c
 // downsample demosaic
 static void inpaint_dd(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *const ivoid,
                        void *const ovoid, const dt_iop_roi_t *const roi_in, const dt_iop_roi_t *const roi_out,
-                       const float clip)
+                       const float clip, const float midtones)
 {
   const int filters = dt_image_filter(&piece->pipe->image);
 
@@ -193,7 +195,7 @@ static void inpaint_dd(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, con
         {
           const float val = in[(size_t)jj * 2 * roi_out->width + ii];
 
-          if(val < clip)
+          if((val < clip) && (val > midtones))
           {
             const int c = FC(2 * j + jj + roi_in->y, 2 * i + ii + roi_in->x, filters);
 
@@ -264,14 +266,14 @@ static void inpaint_unroll(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
 
 static void process_inpaint(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *const ivoid,
                             void *const ovoid, const dt_iop_roi_t *const roi_in, const dt_iop_roi_t *const roi_out,
-                            const float clip)
+                            const float clip, const float midtones)
 {
   const dt_iop_roi_t roi_dd = (dt_iop_roi_t){
     .x = 0, .y = 0, .width = floor((double)roi_in->width / 2.0), .height = floor((double)roi_in->height / 2.0)
   };
   void *dd = calloc((size_t)roi_dd.width * roi_dd.height, (size_t)4 * sizeof(float));
 
-  inpaint_dd(self, piece, ivoid, dd, roi_in, &roi_dd, clip);
+  inpaint_dd(self, piece, ivoid, dd, roi_in, &roi_dd, clip, midtones);
   inpaint_unroll(self, piece, dd, ovoid, &roi_dd, roi_out, clip);
 
   free(dd);
@@ -287,6 +289,10 @@ void process(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *c
       = data->clip * fminf(piece->pipe->processed_maximum[0],
                            fminf(piece->pipe->processed_maximum[1], piece->pipe->processed_maximum[2]));
 
+  const float midtones
+      = data->midtones * fminf(piece->pipe->processed_maximum[0],
+                               fminf(piece->pipe->processed_maximum[1], piece->pipe->processed_maximum[2]));
+
   if(dt_dev_pixelpipe_uses_downsampled_input(piece->pipe) || !filters)
   {
     process_clip(self, piece, ivoid, ovoid, roi_in, roi_out, clip);
@@ -297,7 +303,7 @@ void process(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *c
     return;
   }
 
-  process_inpaint(self, piece, ivoid, ovoid, roi_in, roi_out, clip);
+  process_inpaint(self, piece, ivoid, ovoid, roi_in, roi_out, clip, midtones);
 
   // update processed maximum
   const float m = fmaxf(fmaxf(piece->pipe->processed_maximum[0], piece->pipe->processed_maximum[1]),
@@ -307,11 +313,13 @@ void process(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *c
   if(piece->pipe->mask_display) dt_iop_alpha_copy(ivoid, ovoid, roi_out->width, roi_out->height);
 }
 
-static void clip_callback(GtkWidget *slider, dt_iop_module_t *self)
+static void threshold_callback(GtkWidget *slider, dt_iop_module_t *self)
 {
   if(self->dt->gui->reset) return;
+  dt_iop_highlightsinpaint_gui_data_t *g = (dt_iop_highlightsinpaint_gui_data_t *)self->gui_data;
   dt_iop_highlightsinpaint_params_t *p = (dt_iop_highlightsinpaint_params_t *)self->params;
-  p->clip = dt_bauhaus_slider_get(slider);
+  p->clip = MAX(dt_bauhaus_slider_get(g->clip), dt_bauhaus_slider_get(g->midtones));
+  p->midtones = MIN(dt_bauhaus_slider_get(g->clip), dt_bauhaus_slider_get(g->midtones));
   dt_dev_add_history_item(darktable.develop, self, TRUE);
 }
 
@@ -322,6 +330,9 @@ void commit_params(dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pixelpipe_
   dt_iop_highlightsinpaint_data_t *d = (dt_iop_highlightsinpaint_data_t *)piece->data;
 
   *d = *p;
+
+  d->clip = MAX(p->clip, p->midtones);
+  d->midtones = MIN(p->clip, p->midtones);
 
   // only raw.
   if(!dt_image_is_raw(&self->dev->image_storage)) piece->enabled = 0;
@@ -347,11 +358,12 @@ void gui_update(dt_iop_module_t *self)
   dt_iop_highlightsinpaint_gui_data_t *g = (dt_iop_highlightsinpaint_gui_data_t *)self->gui_data;
   dt_iop_highlightsinpaint_params_t *p = (dt_iop_highlightsinpaint_params_t *)self->params;
   dt_bauhaus_slider_set(g->clip, p->clip);
+  dt_bauhaus_slider_set(g->midtones, p->midtones);
 }
 
 void reload_defaults(dt_iop_module_t *self)
 {
-  dt_iop_highlightsinpaint_params_t tmp = (dt_iop_highlightsinpaint_params_t){.clip = 1.0 };
+  dt_iop_highlightsinpaint_params_t tmp = (dt_iop_highlightsinpaint_params_t){.clip = 1.0, .midtones = 0.5 };
 
   // we might be called from presets update infrastructure => there is no image
   if(!self->dev) goto end;
@@ -396,8 +408,15 @@ void gui_init(dt_iop_module_t *self)
                                          "magenta highlights (you shouldn't ever need to touch this)"));
   dt_bauhaus_widget_set_label(g->clip, NULL, _("clipping threshold"));
   gtk_box_pack_start(GTK_BOX(self->widget), g->clip, TRUE, TRUE, 0);
+  g_signal_connect(G_OBJECT(g->clip), "value-changed", G_CALLBACK(threshold_callback), self);
 
-  g_signal_connect(G_OBJECT(g->clip), "value-changed", G_CALLBACK(clip_callback), self);
+  g->midtones = dt_bauhaus_slider_new_with_range(self, 0.0, 2.0, 0.01, p->midtones, 3);
+  gtk_widget_set_tooltip_text(g->midtones,
+                              _("manually adjust the threshold between midtones and highlights. the values lying "
+                                "above this threshold and below clipping threshold will be used for inpainting"));
+  dt_bauhaus_widget_set_label(g->midtones, NULL, _("midtones threshold"));
+  gtk_box_pack_start(GTK_BOX(self->widget), g->midtones, TRUE, TRUE, 0);
+  g_signal_connect(G_OBJECT(g->midtones), "value-changed", G_CALLBACK(threshold_callback), self);
 }
 
 void gui_cleanup(dt_iop_module_t *self)
