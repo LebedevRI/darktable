@@ -166,6 +166,117 @@ static void process_clip(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, c
     dt_unreachable_codepath();
 }
 
+// downsample demosaic
+static void inpaint_dd(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *const ivoid,
+                       void *const ovoid, const dt_iop_roi_t *const roi_in, const dt_iop_roi_t *const roi_out,
+                       const float clip)
+{
+  const int filters = dt_image_filter(&piece->pipe->image);
+
+// out is 1/4 of in
+
+#ifdef _OPENMP
+#pragma omp parallel for schedule(dynamic) default(none)
+#endif
+  for(int j = 0; j < roi_out->height; j++)
+  {
+    float *in = (float *)ivoid + (size_t)4 * roi_out->width * j;
+    float *out = (float *)ovoid + (size_t)4 * roi_out->width * j;
+
+    for(int i = 0; i < roi_out->width; i++, in += 2, out += 4)
+    {
+      // sample 1 bayer block. thus we will have 2 green values.
+      float R = 0.0f, Gmin = FLT_MAX, Gmax = -FLT_MAX, B = 0.0f;
+      for(int jj = 0; jj <= 1; jj++)
+      {
+        for(int ii = 0; ii <= 1; ii++)
+        {
+          const float val = in[(size_t)jj * 2 * roi_out->width + ii];
+
+          if(val < clip)
+          {
+            const int c = FC(2 * j + jj + roi_in->y, 2 * i + ii + roi_in->x, filters);
+
+            switch(c)
+            {
+              case 0:
+                R = val;
+                break;
+              case 1:
+                Gmin = MIN(Gmin, val);
+                Gmax = MAX(Gmax, val);
+                break;
+              case 2:
+                B = val;
+                break;
+            }
+
+            out[c] = val;
+          }
+        }
+      }
+
+      out[0] = R;
+      out[2] = B;
+
+      if(Gmin != FLT_MAX && Gmax != -FLT_MAX)
+        out[1] = (Gmin + Gmax) / 2.0f;
+      else if(Gmin != FLT_MAX)
+        out[1] = Gmin;
+      else if(Gmax != -FLT_MAX)
+        out[1] = Gmax;
+    }
+  }
+}
+
+static void inpaint_unroll(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *const ivoid,
+                           void *const ovoid, const dt_iop_roi_t *const roi_in, const dt_iop_roi_t *const roi_out,
+                           const float clip)
+{
+  const int filters = dt_image_filter(&piece->pipe->image);
+
+  // in is 1/4 of out
+
+  memset(ovoid, 0, (size_t)sizeof(float) * roi_out->width * roi_out->height);
+
+#ifdef _OPENMP
+#pragma omp parallel for schedule(dynamic) default(none)
+#endif
+  for(int j = 0; j < roi_in->height; j++)
+  {
+    float *in = (float *)ivoid + (size_t)4 * roi_in->width * j;
+    float *out = (float *)ovoid + (size_t)4 * roi_in->width * j;
+
+    for(int i = 0; i < roi_in->width; i++, in += 4, out += 2)
+    {
+      // sample 1 bayer block. thus we will have 2 green values.
+      for(int jj = 0; jj <= 1; jj++)
+      {
+        for(int ii = 0; ii <= 1; ii++)
+        {
+          const int c = FC(2 * j + jj + roi_out->y, 2 * i + ii + roi_out->x, filters);
+          out[(size_t)jj * 2 * roi_in->width + ii] = in[c];
+        }
+      }
+    }
+  }
+}
+
+static void process_inpaint(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *const ivoid,
+                            void *const ovoid, const dt_iop_roi_t *const roi_in, const dt_iop_roi_t *const roi_out,
+                            const float clip)
+{
+  const dt_iop_roi_t roi_dd = (dt_iop_roi_t){
+    .x = 0, .y = 0, .width = floor((double)roi_in->width / 2.0), .height = floor((double)roi_in->height / 2.0)
+  };
+  void *dd = calloc((size_t)roi_dd.width * roi_dd.height, (size_t)4 * sizeof(float));
+
+  inpaint_dd(self, piece, ivoid, dd, roi_in, &roi_dd, clip);
+  inpaint_unroll(self, piece, dd, ovoid, &roi_dd, roi_out, clip);
+
+  free(dd);
+}
+
 void process(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *const ivoid, void *const ovoid,
              const dt_iop_roi_t *const roi_in, const dt_iop_roi_t *const roi_out)
 {
@@ -186,8 +297,7 @@ void process(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *c
     return;
   }
 
-  // TODO: do stuff.
-  memcpy(ovoid, ivoid, (size_t)sizeof(float) * roi_in->width * roi_in->height);
+  process_inpaint(self, piece, ivoid, ovoid, roi_in, roi_out, clip);
 
   // update processed maximum
   const float m = fmaxf(fmaxf(piece->pipe->processed_maximum[0], piece->pipe->processed_maximum[1]),
