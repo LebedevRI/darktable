@@ -312,8 +312,8 @@ read_icc_profile (j_decompress_ptr cinfo,
 #undef MAX_SEQ_NO
 
 
-int write_image(dt_imageio_module_data_t *jpg_tmp, const char *filename, const void *in_tmp, void *exif,
-                int exif_len, int imgid, int num, int total)
+int real_write_image(dt_imageio_module_data_t *jpg_tmp, const char *filename, const void *in_tmp, void *exif,
+                     int exif_len, int imgid, int num, int total)
 {
   dt_imageio_jpeg_t *jpg = (dt_imageio_jpeg_t *)jpg_tmp;
   const uint8_t *in = (const uint8_t *)in_tmp;
@@ -396,6 +396,26 @@ int write_image(dt_imageio_module_data_t *jpg_tmp, const char *filename, const v
   jpeg_finish_compress(&(jpg->cinfo));
   jpeg_destroy_compress(&(jpg->cinfo));
   fclose(f);
+  return 0;
+}
+
+int write_image(dt_imageio_module_data_t *jpg_tmp, const char *filename, const void *in_tmp, void *exif,
+                int exif_len, int imgid, int num, int total)
+{
+  for(int i = 100; i >= 5; i--)
+  {
+    char real_name[PATH_MAX] = { 0 };
+    snprintf(real_name, sizeof(real_name), "%s-%03i.jpg", filename, i);
+
+    dt_imageio_jpeg_t *jpg = (dt_imageio_jpeg_t *)jpg_tmp;
+    jpg->quality = i;
+
+    printf("%s\n", real_name);
+
+    int ret = real_write_image(jpg_tmp, real_name, in_tmp, exif, exif_len, imgid, num, total);
+    if(ret != 0) return ret;
+  }
+
   return 0;
 }
 
