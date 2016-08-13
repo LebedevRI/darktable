@@ -90,6 +90,8 @@ typedef struct dt_iop_temperature_global_data_t
   int kernel_whitebalance_1f;
 } dt_iop_temperature_global_data_t;
 
+static void prepare_matrices(dt_iop_module_t *module);
+
 int legacy_params(dt_iop_module_t *self, const void *const old_params, const int old_version,
                   void *new_params, const int new_version)
 {
@@ -396,6 +398,11 @@ static void dt_wb_preset_interpolate(const wb_data *const p1, // the smaller tun
   {
     out->channel[k] = 1.0 / (((1.0 - t) / p1->channel[k]) + (t / p2->channel[k]));
   }
+}
+
+static long double dist(long double *a, long double *b)
+{
+  return hypotl((b[0] - a[0]), (b[1] - a[1]));
 }
 
 void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *const ivoid,
@@ -822,6 +829,80 @@ void gui_update(struct dt_iop_module_t *self)
         }
       }
     }
+  }
+
+  // XXX
+  if(module->gui_data)
+  {
+    prepare_matrices(module);
+
+    printf("here\n");
+
+    size_t count = 0;
+    long double md = FLT_MAX, Md = 0.0, sum = 0.0;
+
+    // look through all added presets
+    for(int j = DT_IOP_NUM_OF_STD_TEMP_PRESETS; j < g->preset_cnt; j++)
+    {
+      // look through all variants of this preset, with different tuning
+      for(int i = g->preset_num[j];
+          (i < wb_preset_count) && !strcmp(wb_preset[i].make, self->dev->image_storage.camera_maker)
+          && !strcmp(wb_preset[i].model, self->dev->image_storage.camera_model)
+          && !strcmp(wb_preset[i].name, wb_preset[g->preset_num[j]].name);
+          i++)
+      {
+        for(int k = g->preset_num[j];
+            (k < wb_preset_count) && !strcmp(wb_preset[k].make, self->dev->image_storage.camera_maker)
+            && !strcmp(wb_preset[k].model, self->dev->image_storage.camera_model)
+            && !strcmp(wb_preset[k].name, wb_preset[g->preset_num[j]].name);
+            k++)
+        {
+          if(wb_preset[i].tuning + 1 >= wb_preset[k].tuning) continue;
+
+          printf("%s [%i; %i] ", wb_preset[i].name, wb_preset[i].tuning, wb_preset[k].tuning);
+
+          for(int h = g->preset_num[j];
+              (h < wb_preset_count) && !strcmp(wb_preset[h].make, self->dev->image_storage.camera_maker)
+              && !strcmp(wb_preset[h].model, self->dev->image_storage.camera_model)
+              && !strcmp(wb_preset[h].name, wb_preset[g->preset_num[j]].name);
+              h++)
+          {
+            if(wb_preset[h].tuning <= wb_preset[i].tuning) continue;
+            if(wb_preset[h].tuning >= wb_preset[k].tuning) continue;
+
+            wb_data interpolated = {.tuning = wb_preset[h].tuning };
+            dt_wb_preset_interpolate(&wb_preset[i], &wb_preset[k], &interpolated);
+
+            long double computed[2], expected[2];
+
+            computed[0] = (long double)interpolated.channel[0] / (long double)interpolated.channel[1];
+            computed[1] = (long double)interpolated.channel[2] / (long double)interpolated.channel[1];
+
+            expected[0] = (long double)wb_preset[h].channel[0] / (long double)wb_preset[h].channel[1];
+            expected[1] = (long double)wb_preset[h].channel[2] / (long double)wb_preset[h].channel[1];
+
+            const long double d = dist(expected, computed);
+
+            printf("%i (%Le) ", wb_preset[h].tuning, d);
+            printf("{(%Lf, %Lf) vs (%Lf, %Lf)} ", computed[0], computed[1], expected[0], expected[1]);
+
+            md = MIN(md, d);
+            Md = MAX(Md, d);
+            sum += d;
+            count++;
+          }
+          printf("\n");
+        }
+      }
+    }
+
+    printf("Count:         %zu\n", count);
+    printf("Min error:     %Le\n", md);
+    printf("Max error:     %Le\n", Md);
+    printf("sum of errors: %Le\n", sum);
+    printf("normed SoE:    %Le\n", sum / (long double)count);
+
+    exit(1);
   }
 }
 
