@@ -1108,6 +1108,19 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
             return 1;
           }
 
+          /* now call process_prepare_cl of module; module should emit meaningful messages in case of error */
+          if(success_opencl && module->process_prepare_cl)
+          {
+            success_opencl
+                = module->process_prepare_cl(module, piece, cl_mem_input, *cl_mem_output, &roi_in, roi_out);
+          }
+
+          if(pipe->shutdown)
+          {
+            dt_pthread_mutex_unlock(&pipe->busy_mutex);
+            return 1;
+          }
+
           /* now call process_cl of module; module should emit meaningful messages in case of error */
           if(success_opencl)
           {
@@ -1239,6 +1252,18 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
 
               dt_pthread_mutex_lock(&pipe->busy_mutex);
             }
+          }
+
+          if(pipe->shutdown)
+          {
+            dt_pthread_mutex_unlock(&pipe->busy_mutex);
+            return 1;
+          }
+
+          /* now call process_prepare of module */
+          if(success_opencl && module->process_prepare)
+          {
+            module->process_prepare(module, piece, input, *output, &roi_in, roi_out);
           }
 
           if(pipe->shutdown)
@@ -1453,6 +1478,18 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
             return 1;
           }
 
+          /* now call process_prepare of module */
+          if(module->process_prepare)
+          {
+            module->process_prepare(module, piece, input, *output, &roi_in, roi_out);
+          }
+
+          if(pipe->shutdown)
+          {
+            dt_pthread_mutex_unlock(&pipe->busy_mutex);
+            return 1;
+          }
+
           /* process module on cpu. use tiling if needed and possible. */
           if((module->flags() & IOP_FLAGS_ALLOW_TILING)
              && !dt_tiling_piece_fits_host_memory(MAX(roi_in.width, roi_out->width),
@@ -1586,6 +1623,18 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
           return 1;
         }
 
+        /* now call process_prepare of module */
+        if(module->process_prepare)
+        {
+          module->process_prepare(module, piece, input, *output, &roi_in, roi_out);
+        }
+
+        if(pipe->shutdown)
+        {
+          dt_pthread_mutex_unlock(&pipe->busy_mutex);
+          return 1;
+        }
+
         /* process module on cpu. use tiling if needed and possible. */
         if((module->flags() & IOP_FLAGS_ALLOW_TILING)
            && !dt_tiling_piece_fits_host_memory(MAX(roi_in.width, roi_out->width),
@@ -1684,6 +1733,18 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
         return 1;
       }
 
+      /* now call process_prepare of module */
+      if(module->process_prepare)
+      {
+        module->process_prepare(module, piece, input, *output, &roi_in, roi_out);
+      }
+
+      if(pipe->shutdown)
+      {
+        dt_pthread_mutex_unlock(&pipe->busy_mutex);
+        return 1;
+      }
+
       /* process module on cpu. use tiling if needed and possible. */
       if((module->flags() & IOP_FLAGS_ALLOW_TILING)
          && !dt_tiling_piece_fits_host_memory(MAX(roi_in.width, roi_out->width),
@@ -1761,6 +1822,18 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
 
         dt_pthread_mutex_lock(&pipe->busy_mutex);
       }
+    }
+
+    if(pipe->shutdown)
+    {
+      dt_pthread_mutex_unlock(&pipe->busy_mutex);
+      return 1;
+    }
+
+    /* now call process_prepare of module */
+    if(module->process_prepare)
+    {
+      module->process_prepare(module, piece, input, *output, &roi_in, roi_out);
     }
 
     if(pipe->shutdown)

@@ -147,6 +147,12 @@ int legacy_params(struct dt_iop_module_t *self, const void *const old_params, co
   * x,y, and scale are just given for orientation in the framebuffer. i and o are
   * scaled to the same size width*height and contain a max of 3 floats. other color
   * formats may be filled by this callback, if the pipeline can handle it. */
+
+/** an optional callback that, if present, will be called before actual process() */
+void process_prepare(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *piece, const void *const i,
+                     void *const o, const struct dt_iop_roi_t *const roi_in,
+                     const struct dt_iop_roi_t *const roi_out);
+
 /** the simplest variant of process(). you can only use OpenMP SIMD here, no intrinsics */
 /** must be provided by each IOP. */
 void process(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *piece, const void *const i,
@@ -166,6 +172,10 @@ void process_sse2(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *p
 #endif
 
 #ifdef HAVE_OPENCL
+/** the opencl equivalent of process_prepare(). */
+int process_prepare_cl(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *piece, cl_mem dev_in,
+                       cl_mem dev_out, const struct dt_iop_roi_t *const roi_in,
+                       const struct dt_iop_roi_t *const roi_out);
 /** the opencl equivalent of process(). */
 int process_cl(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *piece, cl_mem dev_in,
                cl_mem dev_out, const struct dt_iop_roi_t *const roi_in,

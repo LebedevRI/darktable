@@ -293,6 +293,9 @@ int dt_iop_load_module_so(dt_iop_module_so_t *module, const char *libname, const
 
   module->process = default_process;
 
+  if(!g_module_symbol(module->module, "process_prepare", (gpointer) & (module->process_prepare)))
+    module->process_prepare = NULL;
+
   if(!g_module_symbol(module->module, "process_tiling", (gpointer) & (module->process_tiling)))
     module->process_tiling = default_process_tiling;
 
@@ -300,6 +303,9 @@ int dt_iop_load_module_so(dt_iop_module_so_t *module, const char *libname, const
     module->process_sse2 = NULL;
 
   if(!g_module_symbol(module->module, "process", (gpointer) & (module->process_plain))) goto error;
+
+  if(!g_module_symbol(module->module, "process_prepare_cl", (gpointer) & (module->process_prepare_cl)))
+    module->process_prepare_cl = NULL;
 
   if(!darktable.opencl->inited
      || !g_module_symbol(module->module, "process_cl", (gpointer) & (module->process_cl)))
@@ -412,10 +418,12 @@ static int dt_iop_load_module_by_so(dt_iop_module_t *module, dt_iop_module_so_t 
   module->reload_defaults = so->reload_defaults;
   module->init_pipe = so->init_pipe;
   module->cleanup_pipe = so->cleanup_pipe;
+  module->process_prepare = so->process_prepare;
   module->process = so->process;
   module->process_tiling = so->process_tiling;
   module->process_plain = so->process_plain;
   module->process_sse2 = so->process_sse2;
+  module->process_prepare_cl = so->process_prepare_cl;
   module->process_cl = so->process_cl;
   module->process_tiling_cl = so->process_tiling_cl;
   module->distort_transform = so->distort_transform;
