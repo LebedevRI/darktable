@@ -110,6 +110,7 @@ typedef struct dt_iop_colorreconstruct_data_t
   float range;
   float hue;
   dt_iop_colorreconstruct_precedence_t precedence;
+  dt_iop_colorreconstruct_bilateral_frozen_t *can;
 } dt_iop_colorreconstruct_data_t;
 
 typedef struct dt_iop_colorreconstruct_global_data_t
@@ -584,6 +585,64 @@ static void dt_iop_colorreconstruct_bilateral_slice(const dt_iop_colorreconstruc
 }
 
 
+void process_prepare(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *const ivoid,
+                     void *const ovoid, const dt_iop_roi_t *const roi_in, const dt_iop_roi_t *const roi_out)
+{
+  dt_iop_colorreconstruct_data_t *data = (dt_iop_colorreconstruct_data_t *)piece->data;
+  dt_iop_colorreconstruct_gui_data_t *g = (dt_iop_colorreconstruct_gui_data_t *)self->gui_data;
+  float *in = (float *)ivoid;
+
+  const float scale = piece->iscale / roi_in->scale;
+  const float sigma_r = fmax(data->range, 0.1f);
+  const float sigma_s = fmax(data->spatial, 1.0f) / scale;
+  const float hue = hue_conversion(data->hue); // convert to LCH hue which better fits to Lab colorspace
+
+  const float params[4] = { hue, M_PI*M_PI/8, 0.0f, 0.0f };
+
+  dt_iop_colorreconstruct_bilateral_t *b;
+  dt_iop_colorreconstruct_bilateral_frozen_t **storage = NULL;
+
+  // color reconstruction often involves a massive spatial blur of the bilateral grid. this typically requires
+  // more or less the whole image to contribute to the grid. In pixelpipe FULL we can not rely on this
+  // as the pixelpipe might only see part of the image (region of interest). Therefore we "steal" the bilateral
+  // grid
+  // of the preview pipe if needed. However, the grid of the preview pipeline is coarser and may lead
+  // to other artifacts so we only want to use it when necessary.
+
+  if(self->dev->gui_attached && g)
+  {
+    if(piece->pipe->type != DT_DEV_PIXELPIPE_PREVIEW) return;
+
+    storage = &g->can;
+  }
+  else
+  {
+    storage = &data->can;
+  }
+
+  b = dt_iop_colorreconstruct_bilateral_init(roi_in, piece->iscale, sigma_s, sigma_r);
+  if(!b) goto error;
+
+  dt_iop_colorreconstruct_bilateral_splat(b, in, data->threshold, data->precedence, params);
+  dt_iop_colorreconstruct_bilateral_blur(b);
+
+  // here is where we generate the canned bilateral grid of the pipe for later use
+
+  if(g) dt_pthread_mutex_lock(&g->lock);
+
+  dt_iop_colorreconstruct_bilateral_dump(*storage);
+  *storage = dt_iop_colorreconstruct_bilateral_freeze(b);
+
+  if(g) dt_pthread_mutex_unlock(&g->lock);
+
+  dt_iop_colorreconstruct_bilateral_free(b);
+  return;
+
+error:
+  dt_control_log(_("preparations for module `color reconstruction' failed"));
+  dt_iop_colorreconstruct_bilateral_free(b);
+}
+
 void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *const ivoid,
              void *const ovoid, const dt_iop_roi_t *const roi_in, const dt_iop_roi_t *const roi_out)
 {
@@ -597,18 +656,19 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
   const float sigma_s = fmax(data->spatial, 1.0f) / scale;
   const float hue = hue_conversion(data->hue); // convert to LCH hue which better fits to Lab colorspace
 
-  const float params[4] = { hue, M_PI*M_PI/8, 0.0f, 0.0f };
+  const float params[4] = { hue, M_PI * M_PI / 8, 0.0f, 0.0f };
 
   dt_iop_colorreconstruct_bilateral_t *b;
   dt_iop_colorreconstruct_bilateral_frozen_t *can = NULL;
 
-  // color reconstruction often involves a massive spatial blur of the bilateral grid. this typically requires
-  // more or less the whole image to contribute to the grid. In pixelpipe FULL we can not rely on this
-  // as the pixelpipe might only see part of the image (region of interest). Therefore we "steal" the bilateral grid
-  // of the preview pipe if needed. However, the grid of the preview pipeline is coarser and may lead
-  // to other artifacts so we only want to use it when necessary. The threshold for data->spatial has been selected
-  // arbitrarily.
-  if(sigma_s > DT_COLORRECONSTRUCT_SPATIAL_APPROX && self->dev->gui_attached && g && piece->pipe->type == DT_DEV_PIXELPIPE_FULL)
+  // The threshold for data->spatial has been selected arbitrarily.
+
+  if(data->can)
+  {
+    can = data->can;
+  }
+  else if(sigma_s > DT_COLORRECONSTRUCT_SPATIAL_APPROX && self->dev->gui_attached && g
+          && piece->pipe->type == DT_DEV_PIXELPIPE_FULL)
   {
     // check how far we are zoomed-in
     dt_dev_zoom_t zoom = dt_control_get_dev_zoom();
@@ -625,6 +685,8 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
   if(can)
   {
     b = dt_iop_colorreconstruct_bilateral_thaw(can);
+    dt_iop_colorreconstruct_bilateral_dump(data->can);
+    data->can = NULL;
   }
   else
   {
@@ -634,24 +696,18 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
   }
 
   if(!b) goto error;
-  
+
   dt_iop_colorreconstruct_bilateral_slice(b, in, out, data->threshold, roi_in, piece->iscale);
 
-  // here is where we generate the canned bilateral grid of the preview pipe for later use
-  if(self->dev->gui_attached && g && piece->pipe->type == DT_DEV_PIXELPIPE_PREVIEW)
-  {
-    dt_pthread_mutex_lock(&g->lock);
-    dt_iop_colorreconstruct_bilateral_dump(g->can);
-    g->can = dt_iop_colorreconstruct_bilateral_freeze(b);
-    dt_pthread_mutex_unlock(&g->lock);
-  }
-
   dt_iop_colorreconstruct_bilateral_free(b);
+
   return;
 
 error:
   dt_control_log(_("module `color reconstruction' failed"));
   dt_iop_colorreconstruct_bilateral_free(b);
+  dt_iop_colorreconstruct_bilateral_dump(data->can);
+  data->can = NULL;
   memcpy(ovoid, ivoid, (size_t)sizeof(float) * piece->colors * roi_out->width * roi_out->height);
 }
 
@@ -1270,8 +1326,11 @@ void commit_params(struct dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pix
   d->hue = p->hue;
 
 #ifdef HAVE_OPENCL
+  // piece->process_cl_ready = 0; ???
   piece->process_cl_ready = (piece->process_cl_ready && !(darktable.opencl->avoid_atomics));
 #endif
+
+  d->can = NULL;
 }
 
 void init_pipe(struct dt_iop_module_t *self, dt_dev_pixelpipe_t *pipe, dt_dev_pixelpipe_iop_t *piece)
