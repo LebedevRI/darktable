@@ -899,6 +899,8 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
       (void)dt_dev_pixelpipe_cache_get(&(pipe->cache), hash, bufsize, output);
     dt_pthread_mutex_unlock(&pipe->busy_mutex);
 
+    for(int k = 0; k < 4; k++) piece->processed_maximum[k] = pipe->processed_maximum[k];
+
 // if(module) printf("reserving new buf in cache for module %s %s: %ld buf %p\n", module->op, pipe ==
 // dev->preview_pipe ? "[preview]" : "", hash, *output);
 
