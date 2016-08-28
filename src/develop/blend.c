@@ -2564,6 +2564,9 @@ void dt_develop_blend_process(struct dt_iop_module_t *self, struct dt_dev_pixelp
    */
   const int blendflag = self->flags() & IOP_FLAGS_BLEND_ONLY_LIGHTNESS;
 
+  /* so do we have drawn mask with forms or not? */
+  int have_drawn_mask = 0;
+
   /* get channel max values depending on colorspace */
   const dt_iop_colorspace_type_t cst = dt_iop_module_colorspace(self);
 
@@ -2598,6 +2601,8 @@ void dt_develop_blend_process(struct dt_iop_module_t *self, struct dt_dev_pixelp
 
     if(form && (!(self->flags() & IOP_FLAGS_NO_MASKS)) && (d->mask_mode & DEVELOP_MASK_MASK))
     {
+      have_drawn_mask = 1;
+
       dt_masks_group_render_roi(self, piece, form, roi_out, mask);
 
       if(d->mask_combine & DEVELOP_COMBINE_MASKS_POS)
@@ -2738,6 +2743,12 @@ void dt_develop_blend_process(struct dt_iop_module_t *self, struct dt_dev_pixelp
     piece->pipe->mask_display = 1;
   }
 
+  /* if there is drawn mask, re-use processed_maximum from before the module */
+  if(have_drawn_mask && piece->pipe->type == DT_DEV_PIXELPIPE_FULL)
+  {
+    for(int k = 0; k < 3; k++) piece->pipe->processed_maximum[k] = piece->processed_maximum[k];
+  }
+
   dt_free_align(mask);
 }
 
@@ -2780,6 +2791,9 @@ int dt_develop_blend_process_cl(struct dt_iop_module_t *self, struct dt_dev_pixe
     dt_control_log(_("skipped blending in module '%s': roi's do not match"), self->op);
     return TRUE;
   }
+
+  /* so do we have drawn mask with forms or not? */
+  int have_drawn_mask = 0;
 
   const dt_iop_colorspace_type_t cst = dt_iop_module_colorspace(self);
   const int downsampled = dt_dev_pixelpipe_uses_downsampled_input(piece->pipe);
@@ -2863,6 +2877,8 @@ int dt_develop_blend_process_cl(struct dt_iop_module_t *self, struct dt_dev_pixe
     dt_masks_form_t *form = dt_masks_get_from_id(self->dev, d->mask_id);
     if(form && (!(self->flags() & IOP_FLAGS_NO_MASKS)) && (d->mask_mode & DEVELOP_MASK_MASK))
     {
+      have_drawn_mask = 1;
+
       dt_masks_group_render_roi(self, piece, form, roi_out, mask);
 
       if(d->mask_combine & DEVELOP_COMBINE_MASKS_POS)
@@ -3010,6 +3026,13 @@ int dt_develop_blend_process_cl(struct dt_iop_module_t *self, struct dt_dev_pixe
   dt_opencl_release_mem_object(dev_tmp);
   dt_opencl_release_mem_object(dev_mask);
   dt_opencl_release_mem_object(dev_m);
+
+  /* if there is drawn mask with forms, re-use processed_maximum from before the module */
+  if(have_drawn_mask && piece->pipe->type == DT_DEV_PIXELPIPE_FULL)
+  {
+    for(int k = 0; k < 3; k++) piece->pipe->processed_maximum[k] = piece->processed_maximum[k];
+  }
+
   return TRUE;
 
 error:
