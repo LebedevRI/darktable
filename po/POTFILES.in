@@ -135,6 +135,7 @@ src/iop/vibrance.c
 src/iop/vignette.c
 src/iop/watermark.c
 src/iop/zonesystem.c
+src/iop/brightclipping.c
 src/libs/backgroundjobs.c
 src/libs/camera.c
 src/libs/collect.c
