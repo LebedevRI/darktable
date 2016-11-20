@@ -189,6 +189,7 @@ typedef struct darktable_t
   GList *iop;
   GList *capabilities;
   JsonParser *noiseprofile_parser;
+  JsonParser *wb_presets_parser;
   struct dt_conf_t *conf;
   struct dt_develop_t *develop;
   struct dt_lib_t *lib;

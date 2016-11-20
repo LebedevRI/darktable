@@ -1,0 +1,319 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$ref": "#/definitions/root",
+    "definitions": {
+        "root": {
+            "type": "object",
+            "properties": {
+                "version": {
+                    "$ref": "#/definitions/version"
+                },
+                "wb_presets": {
+                    "$ref": "#/definitions/wb_presets"
+                }
+            },
+            "additionalProperties": false,
+            "required": [
+                "version",
+                "wb_presets"
+            ],
+            "minProperties": 2,
+            "maxProperties": 2
+        },
+        "version": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 0,
+            "exclusiveMinimum": false,
+            "exclusiveMaximum": false,
+            "multipleOf": 1.0,
+            "enum": [
+                0
+            ]
+        },
+        "wb_presets": {
+            "type": "array",
+            "items": {
+                "$ref": "#/definitions/wb_preset"
+            },
+            "additionalItems": false,
+            "minItems": 13,
+            "maxItems": 13,
+            "uniqueItems": true
+        },
+        "wb_preset": {
+            "type": "object",
+            "properties": {
+                "maker": {
+                    "$ref": "#/definitions/maker"
+                },
+                "models": {
+                    "$ref": "#/definitions/models"
+                }
+            },
+            "additionalProperties": false,
+            "required": [
+                "maker",
+                "models"
+            ],
+            "minProperties": 2,
+            "maxProperties": 2
+        },
+        "maker": {
+            "type": "string",
+            "pattern": "^[a-zA-Z ]{4,16}$",
+            "minLength": 4,
+            "maxLength": 16,
+            "enum": [
+                "Canon",
+                "Fujifilm",
+                "Kodak",
+                "Leica Camera AG",
+                "Leica",
+                "Minolta",
+                "Nikon",
+                "Olympus",
+                "Panasonic",
+                "Pentax",
+                "Ricoh",
+                "Samsung",
+                "Sony"
+            ]
+        },
+        "models": {
+            "type": "array",
+            "items": {
+                "$ref": "#/definitions/modelItem"
+            },
+            "additionalItems": false,
+            "minItems": 1,
+            "uniqueItems": true
+        },
+        "modelItem": {
+            "type": "object",
+            "properties": {
+                "comment": {
+                    "$ref": "#/definitions/comment"
+                },
+                "model": {
+                    "$ref": "#/definitions/model"
+                },
+                "presets": {
+                    "$ref": "#/definitions/presets"
+                }
+            },
+            "additionalProperties": false,
+            "required": [
+                "model",
+                "presets"
+            ],
+            "minProperties": 2,
+            "maxProperties": 3
+        },
+        "comment": {
+            "type": "string"
+        },
+        "model": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9\\- \\*\\/]{1,22}$",
+            "minLength": 1,
+            "maxLength": 22
+        },
+        "presets": {
+            "type": "array",
+            "items": {
+                "$ref": "#/definitions/preset"
+            },
+            "additionalItems": false,
+            "minItems": 3,
+            "maxItems": 16,
+            "uniqueItems": true
+        },
+        "preset": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "$ref": "#/definitions/presetName"
+                },
+                "temperature": {
+                    "$ref": "#/definitions/kelvinTemperature"
+                },
+                "tunings": {
+                    "$ref": "#/definitions/tunings"
+                }
+            },
+            "additionalProperties": false,
+            "oneOf": [
+                {
+                    "required": [
+                        "name"
+                    ]
+                },
+                {
+                    "required": [
+                        "temperature"
+                    ]
+                }
+            ],
+            "required": [
+                "tunings"
+            ],
+            "minProperties": 2,
+            "maxProperties": 2
+        },
+        "presetName": {
+            "type": "string",
+            "pattern": "^[a-zA-Z]{5,32}$",
+            "minLength": 5,
+            "maxLength": 32,
+            "enum": [
+                "BlackNWhite",
+                "Cloudy",
+                "CoolWhiteFluorescent",
+                "DayWhiteFluorescent",
+                "Daylight",
+                "DaylightFluorescent",
+                "DirectSunlight",
+                "EveningSun",
+                "Flash",
+                "FlashAuto",
+                "Fluorescent",
+                "FluorescentHigh",
+                "HighTempMercuryVaporFluorescent",
+                "Incandescent",
+                "IncandescentWarm",
+                "NeutralFluorescent",
+                "Shade",
+                "SodiumVaporFluorescent",
+                "Tungsten",
+                "Underwater",
+                "WarmWhiteFluorescent",
+                "WhiteFluorescent"
+            ]
+        },
+        "kelvinTemperature": {
+            "type": "integer",
+            "minimum": 2500,
+            "maximum": 10000,
+            "exclusiveMinimum": false,
+            "exclusiveMaximum": false,
+            "anyOf": [
+                {
+                    "multipleOf": 200.0
+                },
+                {
+                    "multipleOf": 300.0
+                },
+                {
+                    "multipleOf": 500.0
+                },
+                {
+                    "enum": [
+                        6700
+                    ]
+                }
+            ]
+        },
+        "tunings": {
+            "type": "array",
+            "items": {
+                "$ref": "#/definitions/tuningItem"
+            },
+            "additionalItems": false,
+            "minItems": 1,
+            "maxItems": 19,
+            "uniqueItems": true
+        },
+        "tuningItem": {
+            "type": "object",
+            "properties": {
+                "tuning": {
+                    "$ref": "#/definitions/tuning"
+                },
+                "coeffients": {
+                    "$ref": "#/definitions/coeffients"
+                }
+            },
+            "additionalProperties": false,
+            "required": [
+                "tuning",
+                "coeffients"
+            ],
+            "minProperties": 2,
+            "maxProperties": 2
+        },
+        "tuning": {
+            "type": "integer",
+            "minimum": -9,
+            "maximum": 9,
+            "exclusiveMinimum": false,
+            "exclusiveMaximum": false,
+            "multipleOf": 1.0,
+            "enum": [
+                -9,
+                -8,
+                -7,
+                -6,
+                -5,
+                -4,
+                -3,
+                -2,
+                -1,
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9
+            ]
+        },
+        "coeffients": {
+            "type": "array",
+            "items": [
+                {
+                    "$ref": "#/definitions/coeffient"
+                },
+                {
+                    "$ref": "#/definitions/coeffient"
+                },
+                {
+                    "$ref": "#/definitions/coeffient"
+                },
+                {
+                    "$ref": "#/definitions/zeroCoeffient"
+                }
+            ],
+            "additionalItems": false,
+            "minItems": 4,
+            "maxItems": 4,
+            "uniqueItems": false
+        },
+        "coeffient": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 9,
+            "exclusiveMinimum": true,
+            "exclusiveMaximum": false,
+            "not": {
+                "enum": [
+                    0
+                ]
+            }
+        },
+        "zeroCoeffient": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 0,
+            "exclusiveMinimum": false,
+            "exclusiveMaximum": false,
+            "multipleOf": 1.0,
+            "enum": [
+                0
+            ]
+        }
+    }
+}

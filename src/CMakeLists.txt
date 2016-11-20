@@ -61,6 +61,7 @@ FILE(GLOB SOURCE_FILES
   "common/ratings.c"
   "common/resource_limits.c"
   "common/histogram.c"
+  "common/wb_presets.c"
   "control/control.c"
   "control/crawler.c"
   "control/jobs.c"
@@ -543,6 +544,8 @@ endif()
 add_subdirectory(external/rawspeed)
 list(APPEND LIB_DEPS rawspeed)
 list(APPEND STATIC_LIBS rawspeed_static)
+
+add_subdirectory(external/wb_presets)
 
 # osm gps map library
 if(USE_MAP)
