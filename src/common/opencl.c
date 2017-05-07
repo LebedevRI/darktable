@@ -327,7 +327,7 @@ static int dt_opencl_device_init(dt_opencl_t *cl, const int dev, cl_device_id *d
     printf("     DEVICE_VERSION:           %s\n", deviceversion);
   }
 
-  dt_pthread_mutex_init(&cl->dev[dev].lock, NULL);
+  dt_pthread_mutex_safe_init(&cl->dev[dev].lock, NULL);
 
   cl->dev[dev].context = (cl->dlocl->symbols->dt_clCreateContext)(0, 1, &devid, NULL, NULL, &err);
   if(err != CL_SUCCESS)
@@ -770,7 +770,7 @@ finally:
   {
     for(int i = 0; cl->dev && i < cl->num_devs; i++)
     {
-      dt_pthread_mutex_destroy(&cl->dev[i].lock);
+      dt_pthread_mutex_safe_destroy(&cl->dev[i].lock);
       for(int k = 0; k < DT_OPENCL_MAX_KERNELS; k++)
         if(cl->dev[i].kernel_used[k]) (cl->dlocl->symbols->dt_clReleaseKernel)(cl->dev[i].kernel[k]);
       for(int k = 0; k < DT_OPENCL_MAX_PROGRAMS; k++)
@@ -810,7 +810,7 @@ void dt_opencl_cleanup(dt_opencl_t *cl)
     dt_interpolation_free_cl_global(cl->interpolation);
     for(int i = 0; i < cl->num_devs; i++)
     {
-      dt_pthread_mutex_destroy(&cl->dev[i].lock);
+      dt_pthread_mutex_safe_destroy(&cl->dev[i].lock);
       for(int k = 0; k < DT_OPENCL_MAX_KERNELS; k++)
         if(cl->dev[i].kernel_used[k]) (cl->dlocl->symbols->dt_clReleaseKernel)(cl->dev[i].kernel[k]);
       for(int k = 0; k < DT_OPENCL_MAX_PROGRAMS; k++)
@@ -1371,7 +1371,7 @@ int dt_opencl_lock_device(const int pipetype)
 
       while(*prio != -1)
       {
-        if(!dt_pthread_mutex_trylock(&cl->dev[*prio].lock))
+        if(!dt_pthread_mutex_trylock(&cl->dev[*prio].lock.Mutex))
         {
           int devid = *prio;
           free(priority);
@@ -1395,7 +1395,7 @@ int dt_opencl_lock_device(const int pipetype)
     for(int try_dev = 0; try_dev < cl->num_devs; try_dev++)
     {
       // get first currently unused processor
-      if(!dt_pthread_mutex_trylock(&cl->dev[try_dev].lock)) return try_dev;
+      if(!dt_pthread_mutex_trylock(&cl->dev[try_dev].lock.Mutex)) return try_dev;
     }
   }
 
@@ -1411,7 +1411,7 @@ void dt_opencl_unlock_device(const int dev)
   dt_opencl_t *cl = darktable.opencl;
   if(!cl->inited) return;
   if(dev < 0 || dev >= cl->num_devs) return;
-  dt_pthread_mutex_unlock(&cl->dev[dev].lock);
+  dt_pthread_mutex_unlock(&cl->dev[dev].lock.Mutex);
 }
 
 static FILE *fopen_stat(const char *filename, struct stat *st)
