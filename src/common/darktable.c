@@ -862,7 +862,7 @@ int dt_init(int argc, char *argv[], const gboolean init_gui, const gboolean load
 
   // FIXME: move there into dt_database_t
   dt_pthread_mutex_init(&(darktable.db_insert), NULL);
-  dt_pthread_mutex_init(&(darktable.plugin_threadsafe), NULL);
+  dt_pthread_mutex_safe_init(&(darktable.plugin_threadsafe), NULL);
   dt_pthread_mutex_safe_init(&(darktable.capabilities_threadsafe), NULL);
   darktable.control = (dt_control_t *)calloc(1, sizeof(dt_control_t));
   if(init_gui)
@@ -1118,7 +1118,7 @@ void dt_cleanup()
   dt_capabilities_cleanup();
 
   dt_pthread_mutex_destroy(&(darktable.db_insert));
-  dt_pthread_mutex_destroy(&(darktable.plugin_threadsafe));
+  dt_pthread_mutex_safe_destroy(&(darktable.plugin_threadsafe));
   dt_pthread_mutex_safe_destroy(&(darktable.capabilities_threadsafe));
 
   dt_exif_cleanup();

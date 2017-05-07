@@ -198,7 +198,7 @@ int store(dt_imageio_module_storage_t *self, dt_imageio_module_data_t *sdata, co
   dt_image_full_path(imgid, dirname, sizeof(dirname), &from_cache);
   int fail = 0;
   // we're potentially called in parallel. have sequence number synchronized:
-  dt_pthread_mutex_lock(&darktable.plugin_threadsafe);
+  dt_pthread_mutex_safe_lock(&darktable.plugin_threadsafe);
   {
     // caching this allows to add "$(FILE_NAME)" to the end of the original string without caring
     // about a potentially added "_$(SEQUENCE)"
@@ -292,7 +292,7 @@ try_again:
       }
     }
   } // end of critical block
-  dt_pthread_mutex_unlock(&darktable.plugin_threadsafe);
+  dt_pthread_mutex_safe_unlock(&darktable.plugin_threadsafe);
   if(fail) return 1;
 
   /* export image to file */

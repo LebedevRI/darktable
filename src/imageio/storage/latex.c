@@ -218,7 +218,7 @@ int store(dt_imageio_module_storage_t *self, dt_imageio_module_data_t *sdata, co
   gboolean from_cache = FALSE;
   dt_image_full_path(imgid, dirname, sizeof(dirname), &from_cache);
   // we're potentially called in parallel. have sequence number synchronized:
-  dt_pthread_mutex_lock(&darktable.plugin_threadsafe);
+  dt_pthread_mutex_safe_lock(&darktable.plugin_threadsafe);
   {
 
     // if filenamepattern is a directory just add ${FILE_NAME} as default..
@@ -257,7 +257,7 @@ int store(dt_imageio_module_storage_t *self, dt_imageio_module_data_t *sdata, co
     {
       fprintf(stderr, "[imageio_storage_latex] could not create directory: `%s'!\n", dirname);
       dt_control_log(_("could not create directory `%s'!"), dirname);
-      dt_pthread_mutex_unlock(&darktable.plugin_threadsafe);
+      dt_pthread_mutex_safe_unlock(&darktable.plugin_threadsafe);
       return 1;
     }
 
@@ -338,7 +338,7 @@ int store(dt_imageio_module_storage_t *self, dt_imageio_module_data_t *sdata, co
     // g_free(tags);
     d->l = g_list_insert_sorted(d->l, pair, (GCompareFunc)sort_pos);
   } // end of critical block
-  dt_pthread_mutex_unlock(&darktable.plugin_threadsafe);
+  dt_pthread_mutex_safe_unlock(&darktable.plugin_threadsafe);
 
   /* export image to file */
   dt_imageio_export(imgid, filename, format, fdata, high_quality, upscale, FALSE, self, sdata, num, total);
