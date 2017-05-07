@@ -358,9 +358,9 @@ int32_t dt_control_add_job_res(dt_control_t *control, _dt_job_t *job, int32_t re
 
   dt_pthread_mutex_safe_unlock(&control->res_mutex);
 
-  dt_pthread_mutex_lock(&control->cond_mutex);
+  dt_pthread_mutex_safe_lock(&control->cond_mutex);
   pthread_cond_broadcast(&control->cond);
-  dt_pthread_mutex_unlock(&control->cond_mutex);
+  dt_pthread_mutex_safe_unlock(&control->cond_mutex);
 
   return 0;
 }
@@ -473,9 +473,9 @@ int dt_control_add_job(dt_control_t *control, dt_job_queue_t queue_id, _dt_job_t
   dt_pthread_mutex_safe_unlock(&control->queue_mutex);
 
   // notify workers
-  dt_pthread_mutex_lock(&control->cond_mutex);
+  dt_pthread_mutex_safe_lock(&control->cond_mutex);
   pthread_cond_broadcast(&control->cond);
-  dt_pthread_mutex_unlock(&control->cond_mutex);
+  dt_pthread_mutex_safe_unlock(&control->cond_mutex);
 
   // dispose of dropped job, if any
   dt_control_job_set_state(job_for_disposal, DT_JOB_STATE_DISCARDED);
@@ -516,9 +516,9 @@ static void *dt_control_work_res(void *ptr)
       // wait for a new job.
       int old;
       pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &old);
-      dt_pthread_mutex_lock(&s->cond_mutex);
-      dt_pthread_cond_wait(&s->cond, &s->cond_mutex);
-      dt_pthread_mutex_unlock(&s->cond_mutex);
+      dt_pthread_mutex_safe_lock(&s->cond_mutex);
+      dt_pthread_cond_wait_safe(&s->cond, &s->cond_mutex);
+      dt_pthread_mutex_safe_unlock(&s->cond_mutex);
       int tmp;
       pthread_setcancelstate(old, &tmp);
     }
@@ -532,9 +532,9 @@ static void *dt_control_worker_kicker(void *ptr)
   while(dt_control_running())
   {
     sleep(2);
-    dt_pthread_mutex_lock(&control->cond_mutex);
+    dt_pthread_mutex_safe_lock(&control->cond_mutex);
     pthread_cond_broadcast(&control->cond);
-    dt_pthread_mutex_unlock(&control->cond_mutex);
+    dt_pthread_mutex_safe_unlock(&control->cond_mutex);
   }
   return NULL;
 }
@@ -555,9 +555,9 @@ static void *dt_control_work(void *ptr)
     if(dt_control_run_job(control) < 0)
     {
       // wait for a new job.
-      dt_pthread_mutex_lock(&control->cond_mutex);
-      dt_pthread_cond_wait(&control->cond, &control->cond_mutex);
-      dt_pthread_mutex_unlock(&control->cond_mutex);
+      dt_pthread_mutex_safe_lock(&control->cond_mutex);
+      dt_pthread_cond_wait_safe(&control->cond, &control->cond_mutex);
+      dt_pthread_mutex_safe_unlock(&control->cond_mutex);
     }
   }
   return NULL;
