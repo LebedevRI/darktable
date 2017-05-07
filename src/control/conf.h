@@ -36,7 +36,7 @@
 
 typedef struct dt_conf_t
 {
-  dt_pthread_mutex_t mutex;
+  dt_pthread_mutex_safe_t mutex;
   char filename[PATH_MAX];
   GHashTable *table;
   GHashTable *defaults;
@@ -88,60 +88,60 @@ static inline int dt_conf_is_still_overridden(const char *name, const char *valu
 
 static inline void dt_conf_set_int(const char *name, int val)
 {
-  dt_pthread_mutex_lock(&darktable.conf->mutex);
+  dt_pthread_mutex_safe_lock(&darktable.conf->mutex);
   char *str = g_strdup_printf("%d", val);
   if(!dt_conf_is_still_overridden(name, str))
     g_hash_table_insert(darktable.conf->table, g_strdup(name), str);
   else
     g_free(str);
-  dt_pthread_mutex_unlock(&darktable.conf->mutex);
+  dt_pthread_mutex_safe_unlock(&darktable.conf->mutex);
 }
 
 static inline void dt_conf_set_int64(const char *name, int64_t val)
 {
-  dt_pthread_mutex_lock(&darktable.conf->mutex);
+  dt_pthread_mutex_safe_lock(&darktable.conf->mutex);
   char *str = g_strdup_printf("%" PRId64, val);
   if(!dt_conf_is_still_overridden(name, str))
     g_hash_table_insert(darktable.conf->table, g_strdup(name), str);
   else
     g_free(str);
-  dt_pthread_mutex_unlock(&darktable.conf->mutex);
+  dt_pthread_mutex_safe_unlock(&darktable.conf->mutex);
 }
 
 static inline void dt_conf_set_float(const char *name, float val)
 {
-  dt_pthread_mutex_lock(&darktable.conf->mutex);
+  dt_pthread_mutex_safe_lock(&darktable.conf->mutex);
   char *str = (char *)g_malloc(G_ASCII_DTOSTR_BUF_SIZE);
   g_ascii_dtostr(str, G_ASCII_DTOSTR_BUF_SIZE, val);
   if(!dt_conf_is_still_overridden(name, str))
     g_hash_table_insert(darktable.conf->table, g_strdup(name), str);
   else
     g_free(str);
-  dt_pthread_mutex_unlock(&darktable.conf->mutex);
+  dt_pthread_mutex_safe_unlock(&darktable.conf->mutex);
 }
 
 static inline void dt_conf_set_bool(const char *name, int val)
 {
-  dt_pthread_mutex_lock(&darktable.conf->mutex);
+  dt_pthread_mutex_safe_lock(&darktable.conf->mutex);
   char *str = g_strdup_printf("%s", val ? "TRUE" : "FALSE");
   if(!dt_conf_is_still_overridden(name, str))
     g_hash_table_insert(darktable.conf->table, g_strdup(name), str);
   else
     g_free(str);
-  dt_pthread_mutex_unlock(&darktable.conf->mutex);
+  dt_pthread_mutex_safe_unlock(&darktable.conf->mutex);
 }
 
 static inline void dt_conf_set_string(const char *name, const char *val)
 {
-  dt_pthread_mutex_lock(&darktable.conf->mutex);
+  dt_pthread_mutex_safe_lock(&darktable.conf->mutex);
   if(!dt_conf_is_still_overridden(name, val))
     g_hash_table_insert(darktable.conf->table, g_strdup(name), g_strdup(val));
-  dt_pthread_mutex_unlock(&darktable.conf->mutex);
+  dt_pthread_mutex_safe_unlock(&darktable.conf->mutex);
 }
 
 static inline int dt_conf_get_int(const char *name)
 {
-  dt_pthread_mutex_lock(&darktable.conf->mutex);
+  dt_pthread_mutex_safe_lock(&darktable.conf->mutex);
   const char *str = dt_conf_get_var(name);
   float new_value = dt_calculator_solve(1, str);
   if(isnan(new_value)) new_value = 0.0;
@@ -150,13 +150,13 @@ static inline int dt_conf_get_int(const char *name)
     val = new_value + 0.5;
   else
     val = new_value - 0.5;
-  dt_pthread_mutex_unlock(&darktable.conf->mutex);
+  dt_pthread_mutex_safe_unlock(&darktable.conf->mutex);
   return val;
 }
 
 static inline int64_t dt_conf_get_int64(const char *name)
 {
-  dt_pthread_mutex_lock(&darktable.conf->mutex);
+  dt_pthread_mutex_safe_lock(&darktable.conf->mutex);
   const char *str = dt_conf_get_var(name);
   float new_value = dt_calculator_solve(1, str);
   if(isnan(new_value)) new_value = 0.0;
@@ -165,34 +165,34 @@ static inline int64_t dt_conf_get_int64(const char *name)
     val = new_value + 0.5;
   else
     val = new_value - 0.5;
-  dt_pthread_mutex_unlock(&darktable.conf->mutex);
+  dt_pthread_mutex_safe_unlock(&darktable.conf->mutex);
   return val;
 }
 
 static inline float dt_conf_get_float(const char *name)
 {
-  dt_pthread_mutex_lock(&darktable.conf->mutex);
+  dt_pthread_mutex_safe_lock(&darktable.conf->mutex);
   const char *str = dt_conf_get_var(name);
   float val = dt_calculator_solve(1, str);
   if(isnan(val)) val = 0.0;
-  dt_pthread_mutex_unlock(&darktable.conf->mutex);
+  dt_pthread_mutex_safe_unlock(&darktable.conf->mutex);
   return val;
 }
 
 static inline int dt_conf_get_bool(const char *name)
 {
-  dt_pthread_mutex_lock(&darktable.conf->mutex);
+  dt_pthread_mutex_safe_lock(&darktable.conf->mutex);
   const char *str = dt_conf_get_var(name);
   const int val = (str[0] == 'T') || (str[0] == 't');
-  dt_pthread_mutex_unlock(&darktable.conf->mutex);
+  dt_pthread_mutex_safe_unlock(&darktable.conf->mutex);
   return val;
 }
 
 static inline gchar *dt_conf_get_string(const char *name)
 {
-  dt_pthread_mutex_lock(&darktable.conf->mutex);
+  dt_pthread_mutex_safe_lock(&darktable.conf->mutex);
   const char *str = dt_conf_get_var(name);
-  dt_pthread_mutex_unlock(&darktable.conf->mutex);
+  dt_pthread_mutex_safe_unlock(&darktable.conf->mutex);
   return g_strdup(str);
 }
 
@@ -201,7 +201,7 @@ static inline void dt_conf_init(dt_conf_t *cf, const char *filename, GSList *ove
   cf->table = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
   cf->defaults = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
   cf->override_entries = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
-  dt_pthread_mutex_init(&darktable.conf->mutex, NULL);
+  dt_pthread_mutex_safe_init(&darktable.conf->mutex, NULL);
   FILE *f = 0;
 
 #define LINE_SIZE 1023
@@ -297,16 +297,16 @@ static inline void dt_conf_cleanup(dt_conf_t *cf)
   g_hash_table_unref(cf->table);
   g_hash_table_unref(cf->defaults);
   g_hash_table_unref(cf->override_entries);
-  dt_pthread_mutex_destroy(&darktable.conf->mutex);
+  dt_pthread_mutex_safe_destroy(&darktable.conf->mutex);
 }
 
 /** check if key exists, return 1 if lookup successed, 0 if failed..*/
 static inline int dt_conf_key_exists(const char *key)
 {
-  dt_pthread_mutex_lock(&darktable.conf->mutex);
+  dt_pthread_mutex_safe_lock(&darktable.conf->mutex);
   const int res = (g_hash_table_lookup(darktable.conf->table, key) != NULL)
                   || (g_hash_table_lookup(darktable.conf->override_entries, key) != NULL);
-  dt_pthread_mutex_unlock(&darktable.conf->mutex);
+  dt_pthread_mutex_safe_unlock(&darktable.conf->mutex);
   return res;
 }
 
@@ -324,12 +324,12 @@ static void _conf_add(char *key, char *val, dt_conf_dreggn_t *d)
 /** get all strings in */
 static inline GSList *dt_conf_all_string_entries(const char *dir)
 {
-  dt_pthread_mutex_lock(&darktable.conf->mutex);
+  dt_pthread_mutex_safe_lock(&darktable.conf->mutex);
   dt_conf_dreggn_t d;
   d.result = NULL;
   d.match = dir;
   g_hash_table_foreach(darktable.conf->table, (GHFunc)_conf_add, &d);
-  dt_pthread_mutex_unlock(&darktable.conf->mutex);
+  dt_pthread_mutex_safe_unlock(&darktable.conf->mutex);
   return d.result;
 }
 
