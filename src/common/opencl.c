@@ -482,7 +482,7 @@ end:
 void dt_opencl_init(dt_opencl_t *cl, const gboolean exclude_opencl, const gboolean print_statistics)
 {
   char *str;
-  dt_pthread_mutex_init(&cl->lock, NULL);
+  dt_pthread_mutex_safe_init(&cl->lock, NULL);
   cl->inited = 0;
   cl->enabled = 0;
   cl->stopped = 0;
@@ -866,7 +866,7 @@ void dt_opencl_cleanup(dt_opencl_t *cl)
   }
 
   free(cl->dev);
-  dt_pthread_mutex_destroy(&cl->lock);
+  dt_pthread_mutex_safe_destroy(&cl->lock);
 }
 
 static const char *dt_opencl_get_vendor_by_id(unsigned int id)
@@ -1327,7 +1327,7 @@ int dt_opencl_lock_device(const int pipetype)
   if(!cl->inited) return -1;
 
 
-  dt_pthread_mutex_lock(&cl->lock);
+  dt_pthread_mutex_safe_lock(&cl->lock);
 
   size_t prio_size = sizeof(int) * (cl->num_devs + 1);
   int *priority = (int *)malloc(prio_size);
@@ -1357,7 +1357,7 @@ int dt_opencl_lock_device(const int pipetype)
       mandatory = 0;
   }
 
-  dt_pthread_mutex_unlock(&cl->lock);
+  dt_pthread_mutex_safe_unlock(&cl->lock);
 
   if(priority)
   {
@@ -1783,7 +1783,7 @@ int dt_opencl_create_kernel(const int prog, const char *name)
   dt_opencl_t *cl = darktable.opencl;
   if(!cl->inited) return -1;
   if(prog < 0 || prog >= DT_OPENCL_MAX_PROGRAMS) return -1;
-  dt_pthread_mutex_lock(&cl->lock);
+  dt_pthread_mutex_safe_lock(&cl->lock);
   int k = 0;
   for(int dev = 0; dev < cl->num_devs; dev++)
   {
@@ -1814,10 +1814,10 @@ int dt_opencl_create_kernel(const int prog, const char *name)
       goto error;
     }
   }
-  dt_pthread_mutex_unlock(&cl->lock);
+  dt_pthread_mutex_safe_unlock(&cl->lock);
   return k;
 error:
-  dt_pthread_mutex_unlock(&cl->lock);
+  dt_pthread_mutex_safe_unlock(&cl->lock);
   return -1;
 }
 
@@ -1826,13 +1826,13 @@ void dt_opencl_free_kernel(const int kernel)
   dt_opencl_t *cl = darktable.opencl;
   if(!cl->inited) return;
   if(kernel < 0 || kernel >= DT_OPENCL_MAX_KERNELS) return;
-  dt_pthread_mutex_lock(&cl->lock);
+  dt_pthread_mutex_safe_lock(&cl->lock);
   for(int dev = 0; dev < cl->num_devs; dev++)
   {
     cl->dev[dev].kernel_used[kernel] = 0;
     (cl->dlocl->symbols->dt_clReleaseKernel)(cl->dev[dev].kernel[kernel]);
   }
-  dt_pthread_mutex_unlock(&cl->lock);
+  dt_pthread_mutex_safe_unlock(&cl->lock);
 }
 
 int dt_opencl_get_max_work_item_sizes(const int dev, size_t *sizes)
@@ -2449,7 +2449,7 @@ static void dt_opencl_apply_scheduling_profile(dt_opencl_scheduling_profile_t pr
 {
   char *str;
 
-  dt_pthread_mutex_lock(&darktable.opencl->lock);
+  dt_pthread_mutex_safe_lock(&darktable.opencl->lock);
   darktable.opencl->scheduling_profile = profile;
 
   switch(profile)
@@ -2470,7 +2470,7 @@ static void dt_opencl_apply_scheduling_profile(dt_opencl_scheduling_profile_t pr
       dt_opencl_set_synchronization_timeout(dt_conf_get_int("pixelpipe_synchronization_timeout"));
       break;
   }
-  dt_pthread_mutex_unlock(&darktable.opencl->lock);
+  dt_pthread_mutex_safe_unlock(&darktable.opencl->lock);
 }
 
 /** get global memory of device */

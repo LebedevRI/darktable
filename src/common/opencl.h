@@ -118,7 +118,7 @@ struct dt_local_laplacian_cl_global_t;
  */
 typedef struct dt_opencl_t
 {
-  dt_pthread_mutex_t lock;
+  dt_pthread_mutex_safe_t lock;
   int inited;
   int avoid_atomics;
   int use_events;
