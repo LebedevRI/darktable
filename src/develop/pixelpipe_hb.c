@@ -291,7 +291,7 @@ void dt_dev_pixelpipe_synch_top(dt_dev_pixelpipe_t *pipe, dt_develop_t *dev)
 
 void dt_dev_pixelpipe_change(dt_dev_pixelpipe_t *pipe, struct dt_develop_t *dev)
 {
-  dt_pthread_mutex_lock(&dev->history_mutex);
+  dt_pthread_mutex_safe_lock(&dev->history_mutex);
   // case DT_DEV_PIPE_UNCHANGED: case DT_DEV_PIPE_ZOOMED:
   if(pipe->changed & DT_DEV_PIPE_TOP_CHANGED)
   {
@@ -311,7 +311,7 @@ void dt_dev_pixelpipe_change(dt_dev_pixelpipe_t *pipe, struct dt_develop_t *dev)
     dt_dev_pixelpipe_synch_all(pipe, dev);
   }
   pipe->changed = DT_DEV_PIPE_UNCHANGED;
-  dt_pthread_mutex_unlock(&dev->history_mutex);
+  dt_pthread_mutex_safe_unlock(&dev->history_mutex);
   dt_dev_pixelpipe_get_dimensions(pipe, dev, pipe->iwidth, pipe->iheight, &pipe->processed_width,
                                   &pipe->processed_height);
 }

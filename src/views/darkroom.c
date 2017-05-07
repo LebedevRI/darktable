@@ -1957,7 +1957,7 @@ void leave(dt_view_t *self)
   dt_dev_pixelpipe_cleanup_nodes(dev->pipe);
   dt_dev_pixelpipe_cleanup_nodes(dev->preview_pipe);
 
-  dt_pthread_mutex_lock(&dev->history_mutex);
+  dt_pthread_mutex_safe_lock(&dev->history_mutex);
   while(dev->history)
   {
     dt_dev_history_item_t *hist = (dt_dev_history_item_t *)(dev->history->data);
@@ -1983,7 +1983,7 @@ void leave(dt_view_t *self)
     dev->iop = g_list_delete_link(dev->iop, dev->iop);
   }
 
-  dt_pthread_mutex_unlock(&dev->history_mutex);
+  dt_pthread_mutex_safe_unlock(&dev->history_mutex);
 
   dt_pthread_mutex_unlock(&dev->pipe_mutex);
   dt_pthread_mutex_unlock(&dev->preview_pipe_mutex);
