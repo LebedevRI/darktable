@@ -603,7 +603,7 @@ dt_camctl_t *dt_camctl_new()
            gp_abilities_list_count(camctl->gpcams));
 
   dt_pthread_mutex_init(&camctl->lock, NULL);
-  dt_pthread_mutex_init(&camctl->listeners_lock, NULL);
+  dt_pthread_mutex_safe_init(&camctl->listeners_lock, NULL);
 
   // asynchronously call dt_camctl_detect_cameras(camctl); to fill in camctl
   dt_job_t *job = dt_control_job_create(&_detect_cameras_callback, "detect connected cameras");
@@ -648,7 +648,7 @@ void dt_camctl_destroy(dt_camctl_t *camctl)
   gp_abilities_list_free(camctl->gpcams);
   gp_port_info_list_free(camctl->gpports);
   dt_pthread_mutex_destroy(&camctl->lock);
-  dt_pthread_mutex_destroy(&camctl->listeners_lock);
+  dt_pthread_mutex_safe_destroy(&camctl->listeners_lock);
   g_free(camctl);
 }
 
@@ -662,7 +662,7 @@ void dt_camctl_register_listener(const dt_camctl_t *c, dt_camctl_listener_t *lis
 {
   dt_camctl_t *camctl = (dt_camctl_t *)c;
   // Just locking mutex and prevent signalling CAMERA_CONTROL_BUSY
-  dt_pthread_mutex_lock(&camctl->listeners_lock);
+  dt_pthread_mutex_safe_lock(&camctl->listeners_lock);
   if(g_list_find(camctl->listeners, listener) == NULL)
   {
     camctl->listeners = g_list_append(camctl->listeners, listener);
@@ -670,17 +670,17 @@ void dt_camctl_register_listener(const dt_camctl_t *c, dt_camctl_listener_t *lis
   }
   else
     dt_print(DT_DEBUG_CAMCTL, "[camera_control] registering already registered listener %p\n", listener);
-  dt_pthread_mutex_unlock(&camctl->listeners_lock);
+  dt_pthread_mutex_safe_unlock(&camctl->listeners_lock);
 }
 
 void dt_camctl_unregister_listener(const dt_camctl_t *c, dt_camctl_listener_t *listener)
 {
   dt_camctl_t *camctl = (dt_camctl_t *)c;
   // Just locking mutex and prevent signalling CAMERA_CONTROL_BUSY
-  dt_pthread_mutex_lock(&camctl->listeners_lock);
+  dt_pthread_mutex_safe_lock(&camctl->listeners_lock);
   dt_print(DT_DEBUG_CAMCTL, "[camera_control] unregistering listener %p\n", listener);
   camctl->listeners = g_list_remove(camctl->listeners, listener);
-  dt_pthread_mutex_unlock(&camctl->listeners_lock);
+  dt_pthread_mutex_safe_unlock(&camctl->listeners_lock);
 }
 
 gint _compare_camera_by_port(gconstpointer a, gconstpointer b)
@@ -1568,7 +1568,7 @@ const char *_dispatch_request_image_filename(const dt_camctl_t *c, const char *f
   dt_camctl_t *camctl = (dt_camctl_t *)c;
   GList *listener;
   const char *path = NULL;
-  dt_pthread_mutex_lock(&camctl->listeners_lock);
+  dt_pthread_mutex_safe_lock(&camctl->listeners_lock);
   if((listener = g_list_first(camctl->listeners)) != NULL) do
     {
       if(((dt_camctl_listener_t *)listener->data)->request_image_filename != NULL)
@@ -1576,7 +1576,7 @@ const char *_dispatch_request_image_filename(const dt_camctl_t *c, const char *f
                    ->request_image_filename(camera, filename, exif_time,
                                             ((dt_camctl_listener_t *)listener->data)->data);
     } while((listener = g_list_next(listener)) != NULL);
-  dt_pthread_mutex_unlock(&camctl->listeners_lock);
+  dt_pthread_mutex_safe_unlock(&camctl->listeners_lock);
   return path;
 }
 
@@ -1586,14 +1586,14 @@ const char *_dispatch_request_image_path(const dt_camctl_t *c, time_t *exif_time
   dt_camctl_t *camctl = (dt_camctl_t *)c;
   GList *listener;
   const char *path = NULL;
-  dt_pthread_mutex_lock(&camctl->listeners_lock);
+  dt_pthread_mutex_safe_lock(&camctl->listeners_lock);
   if((listener = g_list_first(camctl->listeners)) != NULL) do
     {
       if(((dt_camctl_listener_t *)listener->data)->request_image_path != NULL)
         path = ((dt_camctl_listener_t *)listener->data)
                    ->request_image_path(camera, exif_time, ((dt_camctl_listener_t *)listener->data)->data);
     } while((listener = g_list_next(listener)) != NULL);
-  dt_pthread_mutex_unlock(&camctl->listeners_lock);
+  dt_pthread_mutex_safe_unlock(&camctl->listeners_lock);
   return path;
 }
 
@@ -1601,28 +1601,28 @@ void _dispatch_camera_connected(const dt_camctl_t *c, const dt_camera_t *camera)
 {
   dt_camctl_t *camctl = (dt_camctl_t *)c;
   GList *listener;
-  dt_pthread_mutex_lock(&camctl->listeners_lock);
+  dt_pthread_mutex_safe_lock(&camctl->listeners_lock);
   if((listener = g_list_first(camctl->listeners)) != NULL) do
     {
       if(((dt_camctl_listener_t *)listener->data)->camera_connected != NULL)
         ((dt_camctl_listener_t *)listener->data)
             ->camera_connected(camera, ((dt_camctl_listener_t *)listener->data)->data);
     } while((listener = g_list_next(listener)) != NULL);
-  dt_pthread_mutex_unlock(&camctl->listeners_lock);
+  dt_pthread_mutex_safe_unlock(&camctl->listeners_lock);
 }
 
 void _dispatch_camera_disconnected(const dt_camctl_t *c, const dt_camera_t *camera)
 {
   dt_camctl_t *camctl = (dt_camctl_t *)c;
   GList *listener;
-  dt_pthread_mutex_lock(&camctl->listeners_lock);
+  dt_pthread_mutex_safe_lock(&camctl->listeners_lock);
   if((listener = g_list_first(camctl->listeners)) != NULL) do
     {
       if(((dt_camctl_listener_t *)listener->data)->camera_disconnected != NULL)
         ((dt_camctl_listener_t *)listener->data)
             ->camera_disconnected(camera, ((dt_camctl_listener_t *)listener->data)->data);
     } while((listener = g_list_next(listener)) != NULL);
-  dt_pthread_mutex_unlock(&camctl->listeners_lock);
+  dt_pthread_mutex_safe_unlock(&camctl->listeners_lock);
 }
 
 
@@ -1630,14 +1630,14 @@ void _dispatch_camera_image_downloaded(const dt_camctl_t *c, const dt_camera_t *
 {
   dt_camctl_t *camctl = (dt_camctl_t *)c;
   GList *listener;
-  dt_pthread_mutex_lock(&camctl->listeners_lock);
+  dt_pthread_mutex_safe_lock(&camctl->listeners_lock);
   if((listener = g_list_first(camctl->listeners)) != NULL) do
     {
       if(((dt_camctl_listener_t *)listener->data)->image_downloaded != NULL)
         ((dt_camctl_listener_t *)listener->data)
             ->image_downloaded(camera, filename, ((dt_camctl_listener_t *)listener->data)->data);
     } while((listener = g_list_next(listener)) != NULL);
-  dt_pthread_mutex_unlock(&camctl->listeners_lock);
+  dt_pthread_mutex_safe_unlock(&camctl->listeners_lock);
 }
 
 int _dispatch_camera_storage_image_filename(const dt_camctl_t *c, const dt_camera_t *camera,
@@ -1646,7 +1646,7 @@ int _dispatch_camera_storage_image_filename(const dt_camctl_t *c, const dt_camer
   int res = 0;
   dt_camctl_t *camctl = (dt_camctl_t *)c;
   GList *listener;
-  dt_pthread_mutex_lock(&camctl->listeners_lock);
+  dt_pthread_mutex_safe_lock(&camctl->listeners_lock);
   if((listener = g_list_first(camctl->listeners)) != NULL) do
     {
       if(((dt_camctl_listener_t *)listener->data)->camera_storage_image_filename != NULL)
@@ -1654,7 +1654,7 @@ int _dispatch_camera_storage_image_filename(const dt_camctl_t *c, const dt_camer
                   ->camera_storage_image_filename(camera, filename, preview, exif,
                                                   ((dt_camctl_listener_t *)listener->data)->data);
     } while((listener = g_list_next(listener)) != NULL);
-  dt_pthread_mutex_unlock(&camctl->listeners_lock);
+  dt_pthread_mutex_safe_unlock(&camctl->listeners_lock);
   return res;
 }
 
@@ -1662,14 +1662,14 @@ void _dispatch_control_status(const dt_camctl_t *c, dt_camctl_status_t status)
 {
   dt_camctl_t *camctl = (dt_camctl_t *)c;
   GList *listener;
-  dt_pthread_mutex_lock(&camctl->listeners_lock);
+  dt_pthread_mutex_safe_lock(&camctl->listeners_lock);
   if((listener = g_list_first(camctl->listeners)) != NULL) do
     {
       if(((dt_camctl_listener_t *)listener->data)->control_status != NULL)
         ((dt_camctl_listener_t *)listener->data)
             ->control_status(status, ((dt_camctl_listener_t *)listener->data)->data);
     } while((listener = g_list_next(listener)) != NULL);
-  dt_pthread_mutex_unlock(&camctl->listeners_lock);
+  dt_pthread_mutex_safe_unlock(&camctl->listeners_lock);
 }
 
 void _dispatch_camera_property_value_changed(const dt_camctl_t *c, const dt_camera_t *camera,
@@ -1677,7 +1677,7 @@ void _dispatch_camera_property_value_changed(const dt_camctl_t *c, const dt_came
 {
   dt_camctl_t *camctl = (dt_camctl_t *)c;
   GList *listener;
-  dt_pthread_mutex_lock(&camctl->listeners_lock);
+  dt_pthread_mutex_safe_lock(&camctl->listeners_lock);
   if((listener = g_list_first(camctl->listeners)) != NULL) do
     {
       if(((dt_camctl_listener_t *)listener->data)->camera_property_value_changed != NULL)
@@ -1685,7 +1685,7 @@ void _dispatch_camera_property_value_changed(const dt_camctl_t *c, const dt_came
             ->camera_property_value_changed(camera, name, value,
                                             ((dt_camctl_listener_t *)listener->data)->data);
     } while((listener = g_list_next(listener)) != NULL);
-  dt_pthread_mutex_unlock(&camctl->listeners_lock);
+  dt_pthread_mutex_safe_unlock(&camctl->listeners_lock);
 }
 
 void _dispatch_camera_property_accessibility_changed(const dt_camctl_t *c, const dt_camera_t *camera,
@@ -1693,7 +1693,7 @@ void _dispatch_camera_property_accessibility_changed(const dt_camctl_t *c, const
 {
   dt_camctl_t *camctl = (dt_camctl_t *)c;
   GList *listener;
-  dt_pthread_mutex_lock(&camctl->listeners_lock);
+  dt_pthread_mutex_safe_lock(&camctl->listeners_lock);
   if((listener = g_list_first(camctl->listeners)) != NULL) do
     {
       if(((dt_camctl_listener_t *)listener->data)->camera_property_accessibility_changed != NULL)
@@ -1701,21 +1701,21 @@ void _dispatch_camera_property_accessibility_changed(const dt_camctl_t *c, const
             ->camera_property_accessibility_changed(camera, name, read_only,
                                                     ((dt_camctl_listener_t *)listener->data)->data);
     } while((listener = g_list_next(listener)) != NULL);
-  dt_pthread_mutex_unlock(&camctl->listeners_lock);
+  dt_pthread_mutex_safe_unlock(&camctl->listeners_lock);
 }
 
 void _dispatch_camera_error(const dt_camctl_t *c, const dt_camera_t *camera, dt_camera_error_t error)
 {
   dt_camctl_t *camctl = (dt_camctl_t *)c;
   GList *listener;
-  dt_pthread_mutex_lock(&camctl->listeners_lock);
+  dt_pthread_mutex_safe_lock(&camctl->listeners_lock);
   if((listener = g_list_first(camctl->listeners)) != NULL) do
     {
       if(((dt_camctl_listener_t *)listener->data)->camera_error != NULL)
         ((dt_camctl_listener_t *)listener->data)
             ->camera_error(camera, error, ((dt_camctl_listener_t *)listener->data)->data);
     } while((listener = g_list_next(listener)) != NULL);
-  dt_pthread_mutex_unlock(&camctl->listeners_lock);
+  dt_pthread_mutex_safe_unlock(&camctl->listeners_lock);
 }
 
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
