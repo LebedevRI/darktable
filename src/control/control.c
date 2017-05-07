@@ -60,7 +60,7 @@ void dt_control_init(dt_control_t *s)
 
   pthread_cond_init(&s->cond, NULL);
   dt_pthread_mutex_init(&s->cond_mutex, NULL);
-  dt_pthread_mutex_init(&s->queue_mutex, NULL);
+  dt_pthread_mutex_safe_init(&s->queue_mutex, NULL);
   dt_pthread_mutex_safe_init(&s->res_mutex, NULL);
   dt_pthread_mutex_init(&s->run_mutex, NULL);
   dt_pthread_mutex_init(&(s->global_mutex), NULL);
@@ -157,7 +157,7 @@ void dt_control_cleanup(dt_control_t *s)
   // DT_DEBUG_SQLITE3_EXEC(dt_database_get(darktable.db), "PRAGMA incremental_vacuum(0)", NULL, NULL, NULL);
   // DT_DEBUG_SQLITE3_EXEC(dt_database_get(darktable.db), "vacuum", NULL, NULL, NULL);
   dt_control_jobs_cleanup(s);
-  dt_pthread_mutex_destroy(&s->queue_mutex);
+  dt_pthread_mutex_safe_destroy(&s->queue_mutex);
   dt_pthread_mutex_destroy(&s->cond_mutex);
   dt_pthread_mutex_safe_destroy(&s->log_mutex);
   dt_pthread_mutex_safe_destroy(&s->res_mutex);

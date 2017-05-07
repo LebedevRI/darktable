@@ -235,7 +235,7 @@ static _dt_job_t *dt_control_schedule_job(dt_control_t *control)
    * - the jobs that didn't get picked this round get their priority incremented
    */
 
-  dt_pthread_mutex_lock(&control->queue_mutex);
+  dt_pthread_mutex_safe_lock(&control->queue_mutex);
 
   // find the job
   _dt_job_t *job = NULL;
@@ -256,7 +256,7 @@ static _dt_job_t *dt_control_schedule_job(dt_control_t *control)
 
   if(!job)
   {
-    dt_pthread_mutex_unlock(&control->queue_mutex);
+    dt_pthread_mutex_safe_unlock(&control->queue_mutex);
     return NULL;
   }
 
@@ -280,7 +280,7 @@ static _dt_job_t *dt_control_schedule_job(dt_control_t *control)
     ((_dt_job_t *)control->queues[i]->data)->priority++;
   }
 
-  dt_pthread_mutex_unlock(&control->queue_mutex);
+  dt_pthread_mutex_safe_unlock(&control->queue_mutex);
 
   return job;
 }
@@ -319,10 +319,10 @@ static int32_t dt_control_run_job(dt_control_t *control)
   dt_pthread_mutex_unlock(&job->wait_mutex);
 
   // remove the job from scheduled job array (for job deduping)
-  dt_pthread_mutex_lock(&control->queue_mutex);
+  dt_pthread_mutex_safe_lock(&control->queue_mutex);
   control->job[dt_control_get_threadid()] = NULL;
   if(job->queue == DT_JOB_QUEUE_USER_EXPORT) control->export_scheduled = FALSE;
-  dt_pthread_mutex_unlock(&control->queue_mutex);
+  dt_pthread_mutex_safe_unlock(&control->queue_mutex);
 
   // and free it
   dt_control_job_dispose(job);
@@ -388,7 +388,7 @@ int dt_control_add_job(dt_control_t *control, dt_job_queue_t queue_id, _dt_job_t
 
   _dt_job_t *job_for_disposal = NULL;
 
-  dt_pthread_mutex_lock(&control->queue_mutex);
+  dt_pthread_mutex_safe_lock(&control->queue_mutex);
 
   GList **queue = &control->queues[queue_id];
   size_t length = control->queue_length[queue_id];
@@ -412,7 +412,7 @@ int dt_control_add_job(dt_control_t *control, dt_job_queue_t queue_id, _dt_job_t
         dt_control_job_print(other_job);
         dt_print(DT_DEBUG_CONTROL, "\n");
 
-        dt_pthread_mutex_unlock(&control->queue_mutex);
+        dt_pthread_mutex_safe_unlock(&control->queue_mutex);
 
         dt_control_job_set_state(job, DT_JOB_STATE_DISCARDED);
         dt_control_job_dispose(job);
@@ -470,7 +470,7 @@ int dt_control_add_job(dt_control_t *control, dt_job_queue_t queue_id, _dt_job_t
     control->queue_length[queue_id]++;
   }
   dt_control_job_set_state(job, DT_JOB_STATE_QUEUED);
-  dt_pthread_mutex_unlock(&control->queue_mutex);
+  dt_pthread_mutex_safe_unlock(&control->queue_mutex);
 
   // notify workers
   dt_pthread_mutex_lock(&control->cond_mutex);
