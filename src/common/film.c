@@ -46,7 +46,7 @@
 
 void dt_film_init(dt_film_t *film)
 {
-  dt_pthread_mutex_init(&film->images_mutex, NULL);
+  dt_pthread_mutex_safe_init(&film->images_mutex, NULL);
   film->last_loaded = film->num_images = 0;
   film->dirname[0] = '\0';
   film->dir = NULL;
@@ -56,7 +56,7 @@ void dt_film_init(dt_film_t *film)
 
 void dt_film_cleanup(dt_film_t *film)
 {
-  dt_pthread_mutex_destroy(&film->images_mutex);
+  dt_pthread_mutex_safe_destroy(&film->images_mutex);
   if(film->dir)
   {
     g_dir_close(film->dir);
