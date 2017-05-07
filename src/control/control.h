@@ -154,7 +154,7 @@ typedef struct dt_control_t
   dt_pthread_mutex_safe_t log_mutex;
 
   // gui settings
-  dt_pthread_mutex_t global_mutex, image_mutex;
+  dt_pthread_mutex_safe_t global_mutex;
   double last_expose_time;
   int key_accelerators_on;
 

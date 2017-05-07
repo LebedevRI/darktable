@@ -63,7 +63,7 @@ void dt_control_init(dt_control_t *s)
   dt_pthread_mutex_safe_init(&s->queue_mutex, NULL);
   dt_pthread_mutex_safe_init(&s->res_mutex, NULL);
   dt_pthread_mutex_safe_init(&s->run_mutex, NULL);
-  dt_pthread_mutex_init(&(s->global_mutex), NULL);
+  dt_pthread_mutex_safe_init(&(s->global_mutex), NULL);
   dt_pthread_mutex_safe_init(&(s->progress_system.mutex), NULL);
 
   // start threads
@@ -734,93 +734,93 @@ void dt_control_hinter_message(const struct dt_control_t *s, const char *message
 
 int32_t dt_control_get_mouse_over_id()
 {
-  dt_pthread_mutex_lock(&(darktable.control->global_mutex));
+  dt_pthread_mutex_safe_lock(&(darktable.control->global_mutex));
   int32_t result = darktable.control->mouse_over_id;
-  dt_pthread_mutex_unlock(&(darktable.control->global_mutex));
+  dt_pthread_mutex_safe_unlock(&(darktable.control->global_mutex));
   return result;
 }
 
 void dt_control_set_mouse_over_id(int32_t value)
 {
-  dt_pthread_mutex_lock(&(darktable.control->global_mutex));
+  dt_pthread_mutex_safe_lock(&(darktable.control->global_mutex));
   if(darktable.control->mouse_over_id != value)
   {
     darktable.control->mouse_over_id = value;
-    dt_pthread_mutex_unlock(&(darktable.control->global_mutex));
+    dt_pthread_mutex_safe_unlock(&(darktable.control->global_mutex));
     dt_control_signal_raise(darktable.signals, DT_SIGNAL_MOUSE_OVER_IMAGE_CHANGE);
   }
   else
-    dt_pthread_mutex_unlock(&(darktable.control->global_mutex));
+    dt_pthread_mutex_safe_unlock(&(darktable.control->global_mutex));
 }
 
 float dt_control_get_dev_zoom_x()
 {
-  dt_pthread_mutex_lock(&(darktable.control->global_mutex));
+  dt_pthread_mutex_safe_lock(&(darktable.control->global_mutex));
   float result = darktable.control->dev_zoom_x;
-  dt_pthread_mutex_unlock(&(darktable.control->global_mutex));
+  dt_pthread_mutex_safe_unlock(&(darktable.control->global_mutex));
   return result;
 }
 void dt_control_set_dev_zoom_x(float value)
 {
-  dt_pthread_mutex_lock(&(darktable.control->global_mutex));
+  dt_pthread_mutex_safe_lock(&(darktable.control->global_mutex));
   darktable.control->dev_zoom_x = value;
-  dt_pthread_mutex_unlock(&(darktable.control->global_mutex));
+  dt_pthread_mutex_safe_unlock(&(darktable.control->global_mutex));
 }
 
 float dt_control_get_dev_zoom_y()
 {
-  dt_pthread_mutex_lock(&(darktable.control->global_mutex));
+  dt_pthread_mutex_safe_lock(&(darktable.control->global_mutex));
   float result = darktable.control->dev_zoom_y;
-  dt_pthread_mutex_unlock(&(darktable.control->global_mutex));
+  dt_pthread_mutex_safe_unlock(&(darktable.control->global_mutex));
   return result;
 }
 void dt_control_set_dev_zoom_y(float value)
 {
-  dt_pthread_mutex_lock(&(darktable.control->global_mutex));
+  dt_pthread_mutex_safe_lock(&(darktable.control->global_mutex));
   darktable.control->dev_zoom_y = value;
-  dt_pthread_mutex_unlock(&(darktable.control->global_mutex));
+  dt_pthread_mutex_safe_unlock(&(darktable.control->global_mutex));
 }
 
 float dt_control_get_dev_zoom_scale()
 {
-  dt_pthread_mutex_lock(&(darktable.control->global_mutex));
+  dt_pthread_mutex_safe_lock(&(darktable.control->global_mutex));
   float result = darktable.control->dev_zoom_scale;
-  dt_pthread_mutex_unlock(&(darktable.control->global_mutex));
+  dt_pthread_mutex_safe_unlock(&(darktable.control->global_mutex));
   return result;
 }
 void dt_control_set_dev_zoom_scale(float value)
 {
-  dt_pthread_mutex_lock(&(darktable.control->global_mutex));
+  dt_pthread_mutex_safe_lock(&(darktable.control->global_mutex));
   darktable.control->dev_zoom_scale = value;
-  dt_pthread_mutex_unlock(&(darktable.control->global_mutex));
+  dt_pthread_mutex_safe_unlock(&(darktable.control->global_mutex));
 }
 
 int dt_control_get_dev_closeup()
 {
-  dt_pthread_mutex_lock(&(darktable.control->global_mutex));
+  dt_pthread_mutex_safe_lock(&(darktable.control->global_mutex));
   int result = darktable.control->dev_closeup;
-  dt_pthread_mutex_unlock(&(darktable.control->global_mutex));
+  dt_pthread_mutex_safe_unlock(&(darktable.control->global_mutex));
   return result;
 }
 void dt_control_set_dev_closeup(int value)
 {
-  dt_pthread_mutex_lock(&(darktable.control->global_mutex));
+  dt_pthread_mutex_safe_lock(&(darktable.control->global_mutex));
   darktable.control->dev_closeup = value;
-  dt_pthread_mutex_unlock(&(darktable.control->global_mutex));
+  dt_pthread_mutex_safe_unlock(&(darktable.control->global_mutex));
 }
 
 dt_dev_zoom_t dt_control_get_dev_zoom()
 {
-  dt_pthread_mutex_lock(&(darktable.control->global_mutex));
+  dt_pthread_mutex_safe_lock(&(darktable.control->global_mutex));
   dt_dev_zoom_t result = darktable.control->dev_zoom;
-  dt_pthread_mutex_unlock(&(darktable.control->global_mutex));
+  dt_pthread_mutex_safe_unlock(&(darktable.control->global_mutex));
   return result;
 }
 void dt_control_set_dev_zoom(dt_dev_zoom_t value)
 {
-  dt_pthread_mutex_lock(&(darktable.control->global_mutex));
+  dt_pthread_mutex_safe_lock(&(darktable.control->global_mutex));
   darktable.control->dev_zoom = value;
-  dt_pthread_mutex_unlock(&(darktable.control->global_mutex));
+  dt_pthread_mutex_safe_unlock(&(darktable.control->global_mutex));
 }
 
 
