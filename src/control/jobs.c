@@ -189,14 +189,14 @@ static int32_t dt_control_run_job_res(dt_control_t *control, int32_t res)
   if(((unsigned int)res) >= DT_CTL_WORKER_RESERVED) return -1;
 
   _dt_job_t *job = NULL;
-  dt_pthread_mutex_lock(&control->res_mutex);
+  dt_pthread_mutex_safe_lock(&control->res_mutex);
   if(control->new_res[res])
   {
     job = control->job_res[res];
     control->job_res[res] = NULL; // this job belongs to us now, the queue may not touch it any longer
   }
   control->new_res[res] = 0;
-  dt_pthread_mutex_unlock(&control->res_mutex);
+  dt_pthread_mutex_safe_unlock(&control->res_mutex);
   if(!job) return -1;
 
   /* change state to running */
@@ -339,7 +339,7 @@ int32_t dt_control_add_job_res(dt_control_t *control, _dt_job_t *job, int32_t re
   }
 
   // TODO: pthread cancel and restart in tough cases?
-  dt_pthread_mutex_lock(&control->res_mutex);
+  dt_pthread_mutex_safe_lock(&control->res_mutex);
 
   // if there is a job in the queue we have to discard that first
   if(control->job_res[res])
@@ -356,7 +356,7 @@ int32_t dt_control_add_job_res(dt_control_t *control, _dt_job_t *job, int32_t re
   control->job_res[res] = job;
   control->new_res[res] = 1;
 
-  dt_pthread_mutex_unlock(&control->res_mutex);
+  dt_pthread_mutex_safe_unlock(&control->res_mutex);
 
   dt_pthread_mutex_lock(&control->cond_mutex);
   pthread_cond_broadcast(&control->cond);
