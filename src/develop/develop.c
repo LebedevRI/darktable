@@ -75,8 +75,8 @@ void dt_dev_init(dt_develop_t *dev, int32_t gui_attached)
   dev->preview_input_changed = 0;
 
   dev->pipe = dev->preview_pipe = NULL;
-  dt_pthread_mutex_init(&dev->pipe_mutex, NULL);
-  dt_pthread_mutex_init(&dev->preview_pipe_mutex, NULL);
+  dt_pthread_mutex_safe_init(&dev->pipe_mutex, NULL);
+  dt_pthread_mutex_safe_init(&dev->preview_pipe_mutex, NULL);
   //   dt_pthread_mutex_safe_init(&dev->histogram_waveform_mutex, NULL);
   dev->histogram = NULL;
   dev->histogram_pre_tonecurve = NULL;
@@ -131,8 +131,8 @@ void dt_dev_cleanup(dt_develop_t *dev)
 {
   if(!dev) return;
   // image_cache does not have to be unref'd, this is done outside develop module.
-  dt_pthread_mutex_destroy(&dev->pipe_mutex);
-  dt_pthread_mutex_destroy(&dev->preview_pipe_mutex);
+  dt_pthread_mutex_safe_destroy(&dev->pipe_mutex);
+  dt_pthread_mutex_safe_destroy(&dev->preview_pipe_mutex);
   //   dt_pthread_mutex_safe_destroy(&dev->histogram_waveform_mutex);
   if(dev->pipe)
   {
@@ -211,11 +211,11 @@ void dt_dev_process_preview_job(dt_develop_t *dev)
     return;
   }
 
-  dt_pthread_mutex_lock(&dev->preview_pipe_mutex);
+  dt_pthread_mutex_safe_lock(&dev->preview_pipe_mutex);
 
   if(dev->gui_leaving)
   {
-    dt_pthread_mutex_unlock(&dev->preview_pipe_mutex);
+    dt_pthread_mutex_safe_unlock(&dev->preview_pipe_mutex);
     return;
   }
 
@@ -231,7 +231,7 @@ void dt_dev_process_preview_job(dt_develop_t *dev)
   {
     dt_control_log_busy_leave();
     dev->preview_status = DT_DEV_PIXELPIPE_DIRTY;
-    dt_pthread_mutex_unlock(&dev->preview_pipe_mutex);
+    dt_pthread_mutex_safe_unlock(&dev->preview_pipe_mutex);
     return; // not loaded yet. load will issue a gtk redraw on completion, which in turn will trigger us again
             // later.
   }
@@ -259,7 +259,7 @@ restart:
   {
     dt_control_log_busy_leave();
     dev->preview_status = DT_DEV_PIXELPIPE_INVALID;
-    dt_pthread_mutex_unlock(&dev->preview_pipe_mutex);
+    dt_pthread_mutex_safe_unlock(&dev->preview_pipe_mutex);
     dt_mipmap_cache_release(darktable.mipmap_cache, &buf);
     return;
   }
@@ -276,7 +276,7 @@ restart:
     {
       dt_control_log_busy_leave();
       dev->preview_status = DT_DEV_PIXELPIPE_INVALID;
-      dt_pthread_mutex_unlock(&dev->preview_pipe_mutex);
+      dt_pthread_mutex_safe_unlock(&dev->preview_pipe_mutex);
       dt_mipmap_cache_release(darktable.mipmap_cache, &buf);
       return;
     }
@@ -292,17 +292,17 @@ restart:
   // redraw the whole thing, to also update color picker values and histograms etc.
   if(dev->gui_attached) dt_control_queue_redraw();
   dt_control_log_busy_leave();
-  dt_pthread_mutex_unlock(&dev->preview_pipe_mutex);
+  dt_pthread_mutex_safe_unlock(&dev->preview_pipe_mutex);
   dt_mipmap_cache_release(darktable.mipmap_cache, &buf);
 }
 
 void dt_dev_process_image_job(dt_develop_t *dev)
 {
-  dt_pthread_mutex_lock(&dev->pipe_mutex);
+  dt_pthread_mutex_safe_lock(&dev->pipe_mutex);
 
   if(dev->gui_leaving)
   {
-    dt_pthread_mutex_unlock(&dev->pipe_mutex);
+    dt_pthread_mutex_safe_unlock(&dev->pipe_mutex);
     return;
   }
 
@@ -322,7 +322,7 @@ void dt_dev_process_image_job(dt_develop_t *dev)
   {
     dt_control_log_busy_leave();
     dev->image_status = DT_DEV_PIXELPIPE_DIRTY;
-    dt_pthread_mutex_unlock(&dev->pipe_mutex);
+    dt_pthread_mutex_safe_unlock(&dev->pipe_mutex);
     return;
   }
 
@@ -358,7 +358,7 @@ restart:
     dt_mipmap_cache_release(darktable.mipmap_cache, &buf);
     dt_control_log_busy_leave();
     dev->image_status = DT_DEV_PIXELPIPE_INVALID;
-    dt_pthread_mutex_unlock(&dev->pipe_mutex);
+    dt_pthread_mutex_safe_unlock(&dev->pipe_mutex);
     return;
   }
   dev->pipe->input_timestamp = dev->timestamp;
@@ -403,7 +403,7 @@ restart:
       dt_mipmap_cache_release(darktable.mipmap_cache, &buf);
       dt_control_log_busy_leave();
       dev->image_status = DT_DEV_PIXELPIPE_INVALID;
-      dt_pthread_mutex_unlock(&dev->pipe_mutex);
+      dt_pthread_mutex_safe_unlock(&dev->pipe_mutex);
       return;
     }
     // or because the pipeline changed?
@@ -424,7 +424,7 @@ restart:
   // redraw the whole thing, to also update color picker values and histograms etc.
   if(dev->gui_attached) dt_control_queue_redraw();
   dt_control_log_busy_leave();
-  dt_pthread_mutex_unlock(&dev->pipe_mutex);
+  dt_pthread_mutex_safe_unlock(&dev->pipe_mutex);
 }
 
 // load the raw and get the new image struct, blocking in gui thread

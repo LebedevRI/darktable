@@ -506,10 +506,12 @@ static void dt_dev_change_image(dt_develop_t *dev, const uint32_t imgid)
   // which in turn try to acquire the gdk lock.
   //
   // worst case, it'll drop some change image events. sorry.
-  if(dt_pthread_mutex_trylock(&dev->preview_pipe_mutex)) return;
-  if(dt_pthread_mutex_trylock(&dev->pipe_mutex))
+
+  // https://bugs.llvm.org/show_bug.cgi?id=32954
+  if(dt_pthread_mutex_trylock(&dev->preview_pipe_mutex.Mutex)) return;
+  if(dt_pthread_mutex_trylock(&dev->pipe_mutex.Mutex))
   {
-    dt_pthread_mutex_unlock(&dev->preview_pipe_mutex);
+    dt_pthread_mutex_unlock(&dev->preview_pipe_mutex.Mutex);
     return;
   }
 
@@ -707,8 +709,8 @@ static void dt_dev_change_image(dt_develop_t *dev, const uint32_t imgid)
   dt_view_filmstrip_prefetch();
 
   // release pixel pipe mutices
-  dt_pthread_mutex_unlock(&dev->preview_pipe_mutex);
-  dt_pthread_mutex_unlock(&dev->pipe_mutex);
+  dt_pthread_mutex_unlock(&dev->preview_pipe_mutex.Mutex);
+  dt_pthread_mutex_unlock(&dev->pipe_mutex.Mutex);
 
   // update hint message
   dt_collection_hint_message(darktable.collection);
@@ -1949,8 +1951,8 @@ void leave(dt_view_t *self)
 
   // clear gui.
 
-  dt_pthread_mutex_lock(&dev->preview_pipe_mutex);
-  dt_pthread_mutex_lock(&dev->pipe_mutex);
+  dt_pthread_mutex_safe_lock(&dev->preview_pipe_mutex);
+  dt_pthread_mutex_safe_lock(&dev->pipe_mutex);
 
   dev->gui_leaving = 1;
 
@@ -1985,8 +1987,8 @@ void leave(dt_view_t *self)
 
   dt_pthread_mutex_safe_unlock(&dev->history_mutex);
 
-  dt_pthread_mutex_unlock(&dev->pipe_mutex);
-  dt_pthread_mutex_unlock(&dev->preview_pipe_mutex);
+  dt_pthread_mutex_safe_unlock(&dev->pipe_mutex);
+  dt_pthread_mutex_safe_unlock(&dev->preview_pipe_mutex);
 
   // cleanup visible masks
   if(dev->form_gui)
