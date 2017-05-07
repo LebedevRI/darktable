@@ -216,7 +216,7 @@ typedef struct darktable_t
   struct dt_colorspaces_t *color_profiles;
   dt_pthread_mutex_t db_insert;
   dt_pthread_mutex_t plugin_threadsafe;
-  dt_pthread_mutex_t capabilities_threadsafe;
+  dt_pthread_mutex_safe_t capabilities_threadsafe;
   char *progname;
   char *datadir;
   char *plugindir;
