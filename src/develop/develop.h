@@ -111,8 +111,8 @@ typedef struct dt_develop_t
 
   // image processing pipeline with caching
   struct dt_dev_pixelpipe_t *pipe, *preview_pipe;
-  dt_pthread_mutex_safe_t pipe_mutex;
-  dt_pthread_mutex_safe_t preview_pipe_mutex;
+  dt_pthread_mutex_t pipe_mutex;
+  dt_pthread_mutex_t preview_pipe_mutex;
   // these are locked while the pipes are still in use
 
   // image under consideration, which
@@ -124,7 +124,7 @@ typedef struct dt_develop_t
   dt_image_t image_storage;
 
   // history stack
-  dt_pthread_mutex_safe_t history_mutex;
+  dt_pthread_mutex_t history_mutex;
   int32_t history_end;
   GList *history;
 
@@ -139,7 +139,7 @@ typedef struct dt_develop_t
       histogram_waveform_stride;
   // we should process the waveform histogram in the correct size to make it not look like crap. since this
   // requires gui knowledge we need this mutex
-  //   dt_pthread_mutex_safe_t histogram_waveform_mutex;
+  //   dt_pthread_mutex_t histogram_waveform_mutex;
   dt_dev_histogram_type_t histogram_type;
 
   // list of forms iop can use for masks or whatever
@@ -360,20 +360,20 @@ uint64_t dt_dev_hash(dt_develop_t *dev);
 uint64_t dt_dev_hash_plus(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmin, int pmax);
 /** wait until hash value found in hash matches hash value defined by dev/pipe/pmin/pmax with timeout */
 int dt_dev_wait_hash(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmin, int pmax,
-                     dt_pthread_mutex_safe_t *lock, const volatile uint64_t *const hash);
+                     dt_pthread_mutex_t *lock, const volatile uint64_t *const hash);
 /** synchronize pixelpipe by means hash values by waiting with timeout and potential reprocessing */
 int dt_dev_sync_pixelpipe_hash(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmin, int pmax,
-                               dt_pthread_mutex_safe_t *lock, const volatile uint64_t *const hash);
+                               dt_pthread_mutex_t *lock, const volatile uint64_t *const hash);
 /** generate hash value out of module settings of all distorting modules of pixelpipe */
 uint64_t dt_dev_hash_distort(dt_develop_t *dev);
 /** same function, but we can specify iop with priority between pmin and pmax */
 uint64_t dt_dev_hash_distort_plus(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmin, int pmax);
 /** same as dt_dev_wait_hash but only for distorting modules */
 int dt_dev_wait_hash_distort(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmin, int pmax,
-                             dt_pthread_mutex_safe_t *lock, const volatile uint64_t *const hash);
+                             dt_pthread_mutex_t *lock, const volatile uint64_t *const hash);
 /** same as dt_dev_sync_pixelpipe_hash but ony for distorting modules */
 int dt_dev_sync_pixelpipe_hash_distort(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmin, int pmax,
-                                       dt_pthread_mutex_safe_t *lock, const volatile uint64_t *const hash);
+                                       dt_pthread_mutex_t *lock, const volatile uint64_t *const hash);
 
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent

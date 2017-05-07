@@ -156,9 +156,9 @@ static inline double dt_pthread_get_wtime()
 
 
 #define TOPN 3
-typedef struct dt_pthread_mutex_t
+typedef struct dt_pthread_mutex_BAD_t
 {
-  pthread_mutex_t mutex;
+  pthread_mutex_BAD_t mutex;
   char name[256];
   double time_locked;
   double time_sum_wait;
@@ -167,7 +167,7 @@ typedef struct dt_pthread_mutex_t
   double top_locked_sum[TOPN];
   char top_wait_name[TOPN][256];
   double top_wait_sum[TOPN];
-} dt_pthread_mutex_t;
+} dt_pthread_mutex_BAD_t;
 
 typedef struct dt_pthread_rwlock_t
 {
@@ -177,9 +177,9 @@ typedef struct dt_pthread_rwlock_t
   char name[256];
 } dt_pthread_rwlock_t;
 
-static inline int dt_pthread_mutex_destroy(dt_pthread_mutex_t *mutex)
+static inline int dt_pthread_mutex_BAD_destroy(dt_pthread_mutex_BAD_t *mutex)
 {
-  const int ret = pthread_mutex_destroy(&(mutex->mutex));
+  const int ret = pthread_mutex_BAD_destroy(&(mutex->mutex));
   assert(!ret);
 
 #if 0
@@ -197,12 +197,13 @@ static inline int dt_pthread_mutex_destroy(dt_pthread_mutex_t *mutex)
   return ret;
 }
 
-#define dt_pthread_mutex_init(A, B) dt_pthread_mutex_init_with_caller(A, B, __FILE__, __LINE__, __FUNCTION__)
-static inline int dt_pthread_mutex_init_with_caller(dt_pthread_mutex_t *mutex,
-                                                    const pthread_mutexattr_t *attr, const char *file,
-                                                    const int line, const char *function)
+#define dt_pthread_mutex_BAD_init(A, B)                                                                           \
+  dt_pthread_mutex_BAD_init_with_caller(A, B, __FILE__, __LINE__, __FUNCTION__)
+static inline int dt_pthread_mutex_BAD_init_with_caller(dt_pthread_mutex_BAD_t *mutex,
+                                                        const pthread_mutexattr_t *attr, const char *file,
+                                                        const int line, const char *function)
 {
-  memset(mutex, 0x0, sizeof(dt_pthread_mutex_t));
+  memset(mutex, 0x0, sizeof(dt_pthread_mutex_BAD_t));
   snprintf(mutex->name, sizeof(mutex->name), "%s:%d (%s)", file, line, function);
 #if defined(__OpenBSD__)
   if(attr == NULL)
@@ -210,22 +211,22 @@ static inline int dt_pthread_mutex_init_with_caller(dt_pthread_mutex_t *mutex,
     pthread_mutexattr_t a;
     pthread_mutexattr_init(&a);
     pthread_mutexattr_settype(&a, PTHREAD_MUTEX_NORMAL);
-    const int ret = pthread_mutex_init(&(mutex->mutex), &a);
+    const int ret = pthread_mutex_BAD_init(&(mutex->mutex), &a);
     pthread_mutexattr_destroy(&a);
     return ret;
   }
 #endif
-  const int ret = pthread_mutex_init(&(mutex->mutex), attr);
+  const int ret = pthread_mutex_BAD_init(&(mutex->mutex), attr);
   assert(!ret);
   return ret;
 }
 
-#define dt_pthread_mutex_lock(A) dt_pthread_mutex_lock_with_caller(A, __FILE__, __LINE__, __FUNCTION__)
-static inline int dt_pthread_mutex_lock_with_caller(dt_pthread_mutex_t *mutex, const char *file,
-                                                    const int line, const char *function)
+#define dt_pthread_mutex_BAD_lock(A) dt_pthread_mutex_BAD_lock_with_caller(A, __FILE__, __LINE__, __FUNCTION__)
+static inline int dt_pthread_mutex_BAD_lock_with_caller(dt_pthread_mutex_BAD_t *mutex, const char *file,
+                                                        const int line, const char *function)
 {
   const double t0 = dt_pthread_get_wtime();
-  const int ret = pthread_mutex_lock(&(mutex->mutex));
+  const int ret = pthread_mutex_BAD_lock(&(mutex->mutex));
   assert(!ret);
   mutex->time_locked = dt_pthread_get_wtime();
   double wait = mutex->time_locked - t0;
@@ -247,12 +248,13 @@ static inline int dt_pthread_mutex_lock_with_caller(dt_pthread_mutex_t *mutex, c
   return ret;
 }
 
-#define dt_pthread_mutex_trylock(A) dt_pthread_mutex_trylock_with_caller(A, __FILE__, __LINE__, __FUNCTION__)
-static inline int dt_pthread_mutex_trylock_with_caller(dt_pthread_mutex_t *mutex, const char *file,
-                                                       const int line, const char *function)
+#define dt_pthread_mutex_BAD_trylock(A)                                                                           \
+  dt_pthread_mutex_BAD_trylock_with_caller(A, __FILE__, __LINE__, __FUNCTION__)
+static inline int dt_pthread_mutex_BAD_trylock_with_caller(dt_pthread_mutex_BAD_t *mutex, const char *file,
+                                                           const int line, const char *function)
 {
   const double t0 = dt_pthread_get_wtime();
-  const int ret = pthread_mutex_trylock(&(mutex->mutex));
+  const int ret = pthread_mutex_BAD_trylock(&(mutex->mutex));
   assert(!ret || (ret == EBUSY));
   if(ret) return ret;
   mutex->time_locked = dt_pthread_get_wtime();
@@ -275,9 +277,9 @@ static inline int dt_pthread_mutex_trylock_with_caller(dt_pthread_mutex_t *mutex
   return ret;
 }
 
-#define dt_pthread_mutex_unlock(A) dt_pthread_mutex_unlock_with_caller(A, __FILE__, __LINE__, __FUNCTION__)
-static inline int dt_pthread_mutex_unlock_with_caller(dt_pthread_mutex_t *mutex, const char *file,
-                                                      const int line, const char *function)
+#define dt_pthread_mutex_BAD_unlock(A) dt_pthread_mutex_BAD_unlock_with_caller(A, __FILE__, __LINE__, __FUNCTION__)
+static inline int dt_pthread_mutex_BAD_unlock_with_caller(dt_pthread_mutex_BAD_t *mutex, const char *file,
+                                                          const int line, const char *function)
 {
   const double t0 = dt_pthread_get_wtime();
   const double locked = t0 - mutex->time_locked;
@@ -303,14 +305,14 @@ static inline int dt_pthread_mutex_unlock_with_caller(dt_pthread_mutex_t *mutex,
   }
 
   // need to unlock last, to shield our internal data.
-  const int ret = pthread_mutex_unlock(&(mutex->mutex));
+  const int ret = pthread_mutex_BAD_unlock(&(mutex->mutex));
   assert(!ret);
   return ret;
 }
 
-static inline int dt_pthread_cond_wait(pthread_cond_t *cond, dt_pthread_mutex_t *mutex)
+static inline int dt_pthread_cond_wait_BAD(pthread_cond_t *cond, dt_pthread_mutex_BAD_t *mutex)
 {
-  return pthread_cond_wait(cond, &(mutex->mutex));
+  return pthread_cond_wait_BAD(cond, &(mutex->mutex));
 }
 
 
@@ -405,13 +407,13 @@ static inline int dt_pthread_rwlock_trywrlock_with_caller(dt_pthread_rwlock_t *r
 #undef TOPN
 #else
 
-#define dt_pthread_mutex_t pthread_mutex_t
-#define dt_pthread_mutex_destroy pthread_mutex_destroy
-#define dt_pthread_mutex_init pthread_mutex_init
-#define dt_pthread_mutex_lock pthread_mutex_lock
-#define dt_pthread_mutex_trylock pthread_mutex_trylock
-#define dt_pthread_mutex_unlock pthread_mutex_unlock
-#define dt_pthread_cond_wait pthread_cond_wait
+#define dt_pthread_mutex_BAD_t pthread_mutex_t
+#define dt_pthread_mutex_BAD_destroy pthread_mutex_destroy
+#define dt_pthread_mutex_BAD_init pthread_mutex_init
+#define dt_pthread_mutex_BAD_lock pthread_mutex_lock
+#define dt_pthread_mutex_BAD_trylock pthread_mutex_trylock
+#define dt_pthread_mutex_BAD_unlock pthread_mutex_unlock
+#define dt_pthread_cond_wait_BAD pthread_cond_wait
 
 #define dt_pthread_rwlock_t pthread_rwlock_t
 #define dt_pthread_rwlock_init pthread_rwlock_init
@@ -429,38 +431,38 @@ static inline int dt_pthread_rwlock_trywrlock_with_caller(dt_pthread_rwlock_t *r
 
 #endif
 
-typedef struct CAPABILITY("mutex") dt_pthread_mutex_safe_t
+typedef struct CAPABILITY("mutex") dt_pthread_mutex_t
 {
   pthread_mutex_t Mutex;
-} CAPABILITY("mutex") dt_pthread_mutex_safe_t;
+} CAPABILITY("mutex") dt_pthread_mutex_t;
 
-inline int dt_pthread_mutex_safe_init(dt_pthread_mutex_safe_t *mutex, const pthread_mutexattr_t *mutexattr)
+inline int dt_pthread_mutex_init(dt_pthread_mutex_t *mutex, const pthread_mutexattr_t *mutexattr)
 {
   return pthread_mutex_init(&mutex->Mutex, mutexattr);
 };
 
-inline int dt_pthread_mutex_safe_lock(dt_pthread_mutex_safe_t *mutex) ACQUIRE(mutex) NO_THREAD_SAFETY_ANALYSIS
+inline int dt_pthread_mutex_lock(dt_pthread_mutex_t *mutex) ACQUIRE(mutex) NO_THREAD_SAFETY_ANALYSIS
 {
   return pthread_mutex_lock(&mutex->Mutex);
 };
 
-inline int dt_pthread_mutex_safe_trylock(dt_pthread_mutex_safe_t *mutex) TRY_ACQUIRE(0, mutex)
+inline int dt_pthread_mutex_trylock(dt_pthread_mutex_t *mutex) TRY_ACQUIRE(0, mutex)
 {
   return pthread_mutex_trylock(&mutex->Mutex);
 };
 
-inline int dt_pthread_mutex_safe_unlock(dt_pthread_mutex_safe_t *mutex) RELEASE(mutex) NO_THREAD_SAFETY_ANALYSIS
+inline int dt_pthread_mutex_unlock(dt_pthread_mutex_t *mutex) RELEASE(mutex) NO_THREAD_SAFETY_ANALYSIS
 {
   return pthread_mutex_unlock(&mutex->Mutex);
 };
 
-inline int dt_pthread_mutex_safe_destroy(dt_pthread_mutex_safe_t *mutex)
+inline int dt_pthread_mutex_destroy(dt_pthread_mutex_t *mutex)
 {
   return pthread_mutex_destroy(&mutex->Mutex);
 };
 
 
-inline int dt_pthread_cond_wait_safe(pthread_cond_t *cond, dt_pthread_mutex_safe_t *mutex)
+inline int dt_pthread_cond_wait(pthread_cond_t *cond, dt_pthread_mutex_t *mutex)
 {
   return pthread_cond_wait(cond, &mutex->Mutex);
 };

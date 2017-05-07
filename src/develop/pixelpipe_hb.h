@@ -103,8 +103,8 @@ typedef struct dt_dev_pixelpipe_t
   size_t backbuf_size;
   int backbuf_width, backbuf_height;
   uint64_t backbuf_hash;
-  dt_pthread_mutex_safe_t backbuf_mutex;
-  dt_pthread_mutex_safe_t busy_mutex;
+  dt_pthread_mutex_t backbuf_mutex;
+  dt_pthread_mutex_t busy_mutex;
   // working?
   int processing;
   // shutting down?

@@ -944,9 +944,9 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
   cairo_scale(cr, scale, scale);
 
   /* render svg into surface*/
-  dt_pthread_mutex_safe_lock(&darktable.plugin_threadsafe);
+  dt_pthread_mutex_lock(&darktable.plugin_threadsafe);
   rsvg_handle_render_cairo(svg, cr);
-  dt_pthread_mutex_safe_unlock(&darktable.plugin_threadsafe);
+  dt_pthread_mutex_unlock(&darktable.plugin_threadsafe);
 
   cairo_destroy(cr);
 

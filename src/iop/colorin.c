@@ -1913,7 +1913,7 @@ static void update_profile_list(dt_iop_module_t *self)
 
 void gui_init(struct dt_iop_module_t *self)
 {
-  // pthread_mutex_lock(&darktable.plugin_threadsafe);
+  // pthread_mutex_BAD_lock(&darktable.plugin_threadsafe);
   self->gui_data = malloc(sizeof(dt_iop_colorin_gui_data_t));
   dt_iop_colorin_gui_data_t *g = (dt_iop_colorin_gui_data_t *)self->gui_data;
 

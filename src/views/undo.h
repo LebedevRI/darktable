@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "common/dtpthread.h" // for dt_pthread_mutex_safe_t
+#include "common/dtpthread.h" // for dt_pthread_mutex_t
 #include <glib.h>              // for gpointer, GList
 #include <stdint.h>            // for uint32_t
 
@@ -34,7 +34,7 @@ typedef void *dt_undo_data_t;
 
 typedef struct dt_undo_t
 {
-  dt_pthread_mutex_safe_t mutex;
+  dt_pthread_mutex_t mutex;
   GList *undo_list, *redo_list;
 } dt_undo_t;
 

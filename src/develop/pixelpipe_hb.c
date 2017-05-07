@@ -147,8 +147,8 @@ int dt_dev_pixelpipe_init_cached(dt_dev_pixelpipe_t *pipe, size_t size, int32_t 
   pipe->mask_display = 0;
   pipe->input_timestamp = 0;
   pipe->levels = IMAGEIO_RGB | IMAGEIO_INT8;
-  dt_pthread_mutex_safe_init(&(pipe->backbuf_mutex), NULL);
-  dt_pthread_mutex_safe_init(&(pipe->busy_mutex), NULL);
+  dt_pthread_mutex_init(&(pipe->backbuf_mutex), NULL);
+  dt_pthread_mutex_init(&(pipe->busy_mutex), NULL);
   return 1;
 }
 
@@ -165,22 +165,22 @@ void dt_dev_pixelpipe_set_input(dt_dev_pixelpipe_t *pipe, dt_develop_t *dev, flo
 
 void dt_dev_pixelpipe_cleanup(dt_dev_pixelpipe_t *pipe)
 {
-  dt_pthread_mutex_safe_lock(&pipe->backbuf_mutex);
+  dt_pthread_mutex_lock(&pipe->backbuf_mutex);
   pipe->backbuf = NULL;
   // blocks while busy and sets shutdown bit:
   dt_dev_pixelpipe_cleanup_nodes(pipe);
   // so now it's safe to clean up cache:
   dt_dev_pixelpipe_cache_cleanup(&(pipe->cache));
-  dt_pthread_mutex_safe_unlock(&pipe->backbuf_mutex);
-  dt_pthread_mutex_safe_destroy(&(pipe->backbuf_mutex));
-  dt_pthread_mutex_safe_destroy(&(pipe->busy_mutex));
+  dt_pthread_mutex_unlock(&pipe->backbuf_mutex);
+  dt_pthread_mutex_destroy(&(pipe->backbuf_mutex));
+  dt_pthread_mutex_destroy(&(pipe->busy_mutex));
 }
 
 void dt_dev_pixelpipe_cleanup_nodes(dt_dev_pixelpipe_t *pipe)
 {
   // FIXME: either this or all process() -> gdk mutices have to be changed!
   //        (this is a circular dependency on busy_mutex and the gdk mutex)
-  dt_pthread_mutex_safe_lock(&pipe->busy_mutex);
+  dt_pthread_mutex_lock(&pipe->busy_mutex);
   pipe->shutdown = 1;
   // destroy all nodes
   GList *nodes = pipe->nodes;
@@ -198,12 +198,12 @@ void dt_dev_pixelpipe_cleanup_nodes(dt_dev_pixelpipe_t *pipe)
   }
   g_list_free(pipe->nodes);
   pipe->nodes = NULL;
-  dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+  dt_pthread_mutex_unlock(&pipe->busy_mutex);
 }
 
 void dt_dev_pixelpipe_create_nodes(dt_dev_pixelpipe_t *pipe, dt_develop_t *dev)
 {
-  dt_pthread_mutex_safe_lock(&pipe->busy_mutex);
+  dt_pthread_mutex_lock(&pipe->busy_mutex);
   pipe->shutdown = 0;
   g_assert(pipe->nodes == NULL);
   // for all modules in dev:
@@ -235,7 +235,7 @@ void dt_dev_pixelpipe_create_nodes(dt_dev_pixelpipe_t *pipe, dt_develop_t *dev)
     }
     modules = g_list_next(modules);
   }
-  dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+  dt_pthread_mutex_unlock(&pipe->busy_mutex);
 }
 
 // helper
@@ -259,7 +259,7 @@ void dt_dev_pixelpipe_synch(dt_dev_pixelpipe_t *pipe, dt_develop_t *dev, GList *
 
 void dt_dev_pixelpipe_synch_all(dt_dev_pixelpipe_t *pipe, dt_develop_t *dev)
 {
-  dt_pthread_mutex_safe_lock(&pipe->busy_mutex);
+  dt_pthread_mutex_lock(&pipe->busy_mutex);
   // call reset_params on all pieces first.
   GList *nodes = pipe->nodes;
   while(nodes)
@@ -278,20 +278,20 @@ void dt_dev_pixelpipe_synch_all(dt_dev_pixelpipe_t *pipe, dt_develop_t *dev)
     dt_dev_pixelpipe_synch(pipe, dev, history);
     history = g_list_next(history);
   }
-  dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+  dt_pthread_mutex_unlock(&pipe->busy_mutex);
 }
 
 void dt_dev_pixelpipe_synch_top(dt_dev_pixelpipe_t *pipe, dt_develop_t *dev)
 {
-  dt_pthread_mutex_safe_lock(&pipe->busy_mutex);
+  dt_pthread_mutex_lock(&pipe->busy_mutex);
   GList *history = g_list_nth(dev->history, dev->history_end - 1);
   if(history) dt_dev_pixelpipe_synch(pipe, dev, history);
-  dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+  dt_pthread_mutex_unlock(&pipe->busy_mutex);
 }
 
 void dt_dev_pixelpipe_change(dt_dev_pixelpipe_t *pipe, struct dt_develop_t *dev)
 {
-  dt_pthread_mutex_safe_lock(&dev->history_mutex);
+  dt_pthread_mutex_lock(&dev->history_mutex);
   // case DT_DEV_PIPE_UNCHANGED: case DT_DEV_PIPE_ZOOMED:
   if(pipe->changed & DT_DEV_PIPE_TOP_CHANGED)
   {
@@ -311,7 +311,7 @@ void dt_dev_pixelpipe_change(dt_dev_pixelpipe_t *pipe, struct dt_develop_t *dev)
     dt_dev_pixelpipe_synch_all(pipe, dev);
   }
   pipe->changed = DT_DEV_PIPE_UNCHANGED;
-  dt_pthread_mutex_safe_unlock(&dev->history_mutex);
+  dt_pthread_mutex_unlock(&dev->history_mutex);
   dt_dev_pixelpipe_get_dimensions(pipe, dev, pipe->iwidth, pipe->iheight, &pipe->processed_width,
                                   &pipe->processed_height);
 }
@@ -589,10 +589,10 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
   const size_t bufsize = (size_t)bpp * roi_out->width * roi_out->height;
 
   // 1) if cached buffer is still available, return data
-  dt_pthread_mutex_safe_lock(&pipe->busy_mutex);
+  dt_pthread_mutex_lock(&pipe->busy_mutex);
   if(pipe->shutdown)
   {
-    dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+    dt_pthread_mutex_unlock(&pipe->busy_mutex);
     return 1;
   }
   uint64_t hash = dt_dev_pixelpipe_cache_hash(pipe->image.id, roi_out, pipe, pos);
@@ -603,13 +603,13 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
 
     (void)dt_dev_pixelpipe_cache_get(&(pipe->cache), hash, bufsize, output, out_format);
 
-    dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+    dt_pthread_mutex_unlock(&pipe->busy_mutex);
     if(!modules) return 0;
     // go to post-collect directly:
     goto post_process_collect_info;
   }
   else
-    dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+    dt_pthread_mutex_unlock(&pipe->busy_mutex);
 
   // 2) if history changed or exit event, abort processing?
   // preview pipe: abort on all but zoom events (same buffer anyways)
@@ -624,10 +624,10 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
   if(!modules)
   {
     // 3a) import input array with given scale and roi
-    dt_pthread_mutex_safe_lock(&pipe->busy_mutex);
+    dt_pthread_mutex_lock(&pipe->busy_mutex);
     if(pipe->shutdown)
     {
-      dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+      dt_pthread_mutex_unlock(&pipe->busy_mutex);
       return 1;
     }
     dt_times_t start;
@@ -675,21 +675,21 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
     }
 
     dt_show_times(&start, "[dev_pixelpipe]", "initing base buffer [%s]", _pipe_type_to_str(pipe->type));
-    dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+    dt_pthread_mutex_unlock(&pipe->busy_mutex);
   }
   else
   {
     // 3b) recurse and obtain output array in &input
 
     // get region of interest which is needed in input
-    dt_pthread_mutex_safe_lock(&pipe->busy_mutex);
+    dt_pthread_mutex_lock(&pipe->busy_mutex);
     if(pipe->shutdown)
     {
-      dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+      dt_pthread_mutex_unlock(&pipe->busy_mutex);
       return 1;
     }
     module->modify_roi_in(module, piece, roi_out, &roi_in);
-    dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+    dt_pthread_mutex_unlock(&pipe->busy_mutex);
 
     // recurse to get actual data of input buffer
 
@@ -712,10 +712,10 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
 
 
     // reserve new cache line: output
-    dt_pthread_mutex_safe_lock(&pipe->busy_mutex);
+    dt_pthread_mutex_lock(&pipe->busy_mutex);
     if(pipe->shutdown)
     {
-      dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+      dt_pthread_mutex_unlock(&pipe->busy_mutex);
       return 1;
     }
 
@@ -724,17 +724,17 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
     else
       (void)dt_dev_pixelpipe_cache_get(&(pipe->cache), hash, bufsize, output, out_format);
 
-    dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+    dt_pthread_mutex_unlock(&pipe->busy_mutex);
 
 // if(module) printf("reserving new buf in cache for module %s %s: %ld buf %p\n", module->op, pipe ==
 // dev->preview_pipe ? "[preview]" : "", hash, *output);
 
 #if 0
     // tonecurve/levels histogram (collect luminance only):
-    dt_pthread_mutex_lock(&pipe->busy_mutex);
+    dt_pthread_mutex_BAD_lock(&pipe->busy_mutex);
     if(pipe->shutdown)
     {
-      dt_pthread_mutex_unlock(&pipe->busy_mutex);
+      dt_pthread_mutex_BAD_unlock(&pipe->busy_mutex);
       return 1;
     }
     if(dev->gui_attached && pipe == dev->preview_pipe && (strcmp(module->op, "tonecurve") == 0 || strcmp(module->op, "levels") == 0))
@@ -763,17 +763,17 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
         }
       // don't count <= 0 pixels
       for(int k=19; k<4*64; k+=4) *histogram_pre_max = *histogram_pre_max > histogram_pre[k] ? *histogram_pre_max : histogram_pre[k];
-      dt_pthread_mutex_unlock(&pipe->busy_mutex);
+      dt_pthread_mutex_BAD_unlock(&pipe->busy_mutex);
       if(module->widget) dt_control_queue_redraw_widget(module->widget);
     }
-    else dt_pthread_mutex_unlock(&pipe->busy_mutex);
+    else dt_pthread_mutex_BAD_unlock(&pipe->busy_mutex);
 #endif
 
 
-    dt_pthread_mutex_safe_lock(&pipe->busy_mutex);
+    dt_pthread_mutex_lock(&pipe->busy_mutex);
     if(pipe->shutdown)
     {
-      dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+      dt_pthread_mutex_unlock(&pipe->busy_mutex);
       return 1;
     }
 
@@ -808,7 +808,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
 
     if(pipe->shutdown)
     {
-      dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+      dt_pthread_mutex_unlock(&pipe->busy_mutex);
       return 1;
     }
 
@@ -877,7 +877,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
           if(pipe->shutdown)
           {
             dt_opencl_release_mem_object(cl_mem_input);
-            dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+            dt_pthread_mutex_unlock(&pipe->busy_mutex);
             return 1;
           }
 
@@ -921,17 +921,17 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
               module->histogram_stats = piece->histogram_stats;
               memcpy(module->histogram_max, piece->histogram_max, sizeof(piece->histogram_max));
 
-              dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+              dt_pthread_mutex_unlock(&pipe->busy_mutex);
 
               if(module->widget) dt_control_queue_redraw_widget(module->widget);
 
-              dt_pthread_mutex_safe_lock(&pipe->busy_mutex);
+              dt_pthread_mutex_lock(&pipe->busy_mutex);
             }
           }
 
           if(pipe->shutdown)
           {
-            dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+            dt_pthread_mutex_unlock(&pipe->busy_mutex);
             return 1;
           }
 
@@ -947,7 +947,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
           if(pipe->shutdown)
           {
             dt_opencl_release_mem_object(cl_mem_input);
-            dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+            dt_pthread_mutex_unlock(&pipe->busy_mutex);
             return 1;
           }
 
@@ -969,16 +969,16 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
                                 module->picked_output_color, module->picked_output_color_min,
                                 module->picked_output_color_max, *output, outbufsize, PIXELPIPE_PICKER_OUTPUT);
 
-            dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+            dt_pthread_mutex_unlock(&pipe->busy_mutex);
 
             if(module->widget) dt_control_queue_redraw_widget(module->widget);
 
-            dt_pthread_mutex_safe_lock(&pipe->busy_mutex);
+            dt_pthread_mutex_lock(&pipe->busy_mutex);
           }
 
           if(pipe->shutdown)
           {
-            dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+            dt_pthread_mutex_unlock(&pipe->busy_mutex);
             return 1;
           }
 
@@ -999,7 +999,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
           if(pipe->shutdown)
           {
             dt_opencl_release_mem_object(cl_mem_input);
-            dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+            dt_pthread_mutex_unlock(&pipe->busy_mutex);
             return 1;
           }
         }
@@ -1026,7 +1026,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
                   err);
               dt_opencl_release_mem_object(cl_mem_input);
               pipe->opencl_error = 1;
-              dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+              dt_pthread_mutex_unlock(&pipe->busy_mutex);
               return 1;
             }
             dt_opencl_release_mem_object(cl_mem_input);
@@ -1036,7 +1036,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
 
           if(pipe->shutdown)
           {
-            dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+            dt_pthread_mutex_unlock(&pipe->busy_mutex);
             return 1;
           }
 
@@ -1060,17 +1060,17 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
               module->histogram_stats = piece->histogram_stats;
               memcpy(module->histogram_max, piece->histogram_max, sizeof(piece->histogram_max));
 
-              dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+              dt_pthread_mutex_unlock(&pipe->busy_mutex);
 
               if(module->widget) dt_control_queue_redraw_widget(module->widget);
 
-              dt_pthread_mutex_safe_lock(&pipe->busy_mutex);
+              dt_pthread_mutex_lock(&pipe->busy_mutex);
             }
           }
 
           if(pipe->shutdown)
           {
-            dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+            dt_pthread_mutex_unlock(&pipe->busy_mutex);
             return 1;
           }
 
@@ -1085,7 +1085,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
 
           if(pipe->shutdown)
           {
-            dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+            dt_pthread_mutex_unlock(&pipe->busy_mutex);
             return 1;
           }
 
@@ -1101,16 +1101,16 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
                              module->picked_output_color_min, module->picked_output_color_max,
                              PIXELPIPE_PICKER_OUTPUT);
 
-            dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+            dt_pthread_mutex_unlock(&pipe->busy_mutex);
 
             if(module->widget) dt_control_queue_redraw_widget(module->widget);
 
-            dt_pthread_mutex_safe_lock(&pipe->busy_mutex);
+            dt_pthread_mutex_lock(&pipe->busy_mutex);
           }
 
           if(pipe->shutdown)
           {
-            dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+            dt_pthread_mutex_unlock(&pipe->busy_mutex);
             return 1;
           }
 
@@ -1128,7 +1128,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
 
           if(pipe->shutdown)
           {
-            dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+            dt_pthread_mutex_unlock(&pipe->busy_mutex);
             return 1;
           }
         }
@@ -1142,7 +1142,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
         if(pipe->shutdown)
         {
           dt_opencl_release_mem_object(cl_mem_input);
-          dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+          dt_pthread_mutex_unlock(&pipe->busy_mutex);
           return 1;
         }
 
@@ -1188,7 +1188,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
             if(pipe->shutdown)
             {
               dt_opencl_release_mem_object(cl_mem_input);
-              dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+              dt_pthread_mutex_unlock(&pipe->busy_mutex);
               return 1;
             }
           }
@@ -1233,7 +1233,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
                   err);
               dt_opencl_release_mem_object(cl_mem_input);
               pipe->opencl_error = 1;
-              dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+              dt_pthread_mutex_unlock(&pipe->busy_mutex);
               return 1;
             }
 
@@ -1245,7 +1245,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
 
           if(pipe->shutdown)
           {
-            dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+            dt_pthread_mutex_unlock(&pipe->busy_mutex);
             return 1;
           }
 
@@ -1266,17 +1266,17 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
               module->histogram_stats = piece->histogram_stats;
               memcpy(module->histogram_max, piece->histogram_max, sizeof(piece->histogram_max));
 
-              dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+              dt_pthread_mutex_unlock(&pipe->busy_mutex);
 
               if(module->widget) dt_control_queue_redraw_widget(module->widget);
 
-              dt_pthread_mutex_safe_lock(&pipe->busy_mutex);
+              dt_pthread_mutex_lock(&pipe->busy_mutex);
             }
           }
 
           if(pipe->shutdown)
           {
-            dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+            dt_pthread_mutex_unlock(&pipe->busy_mutex);
             return 1;
           }
 
@@ -1299,7 +1299,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
 
           if(pipe->shutdown)
           {
-            dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+            dt_pthread_mutex_unlock(&pipe->busy_mutex);
             return 1;
           }
 
@@ -1315,16 +1315,16 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
                              module->picked_output_color_min, module->picked_output_color_max,
                              PIXELPIPE_PICKER_OUTPUT);
 
-            dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+            dt_pthread_mutex_unlock(&pipe->busy_mutex);
 
             if(module->widget) dt_control_queue_redraw_widget(module->widget);
 
-            dt_pthread_mutex_safe_lock(&pipe->busy_mutex);
+            dt_pthread_mutex_lock(&pipe->busy_mutex);
           }
 
           if(pipe->shutdown)
           {
-            dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+            dt_pthread_mutex_unlock(&pipe->busy_mutex);
             return 1;
           }
 
@@ -1336,7 +1336,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
 
         if(pipe->shutdown)
         {
-          dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+          dt_pthread_mutex_unlock(&pipe->busy_mutex);
           return 1;
         }
       }
@@ -1366,7 +1366,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
                 err);
             dt_opencl_release_mem_object(cl_mem_input);
             pipe->opencl_error = 1;
-            dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+            dt_pthread_mutex_unlock(&pipe->busy_mutex);
             return 1;
           }
 
@@ -1378,7 +1378,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
 
         if(pipe->shutdown)
         {
-          dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+          dt_pthread_mutex_unlock(&pipe->busy_mutex);
           return 1;
         }
 
@@ -1399,17 +1399,17 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
             module->histogram_stats = piece->histogram_stats;
             memcpy(module->histogram_max, piece->histogram_max, sizeof(piece->histogram_max));
 
-            dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+            dt_pthread_mutex_unlock(&pipe->busy_mutex);
 
             if(module->widget) dt_control_queue_redraw_widget(module->widget);
 
-            dt_pthread_mutex_safe_lock(&pipe->busy_mutex);
+            dt_pthread_mutex_lock(&pipe->busy_mutex);
           }
         }
 
         if(pipe->shutdown)
         {
-          dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+          dt_pthread_mutex_unlock(&pipe->busy_mutex);
           return 1;
         }
 
@@ -1432,7 +1432,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
 
         if(pipe->shutdown)
         {
-          dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+          dt_pthread_mutex_unlock(&pipe->busy_mutex);
           return 1;
         }
 
@@ -1448,16 +1448,16 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
                            module->picked_output_color_min, module->picked_output_color_max,
                            PIXELPIPE_PICKER_OUTPUT);
 
-          dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+          dt_pthread_mutex_unlock(&pipe->busy_mutex);
 
           if(module->widget) dt_control_queue_redraw_widget(module->widget);
 
-          dt_pthread_mutex_safe_lock(&pipe->busy_mutex);
+          dt_pthread_mutex_lock(&pipe->busy_mutex);
         }
 
         if(pipe->shutdown)
         {
-          dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+          dt_pthread_mutex_unlock(&pipe->busy_mutex);
           return 1;
         }
 
@@ -1468,7 +1468,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
 
         if(pipe->shutdown)
         {
-          dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+          dt_pthread_mutex_unlock(&pipe->busy_mutex);
           return 1;
         }
       }
@@ -1497,17 +1497,17 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
           module->histogram_stats = piece->histogram_stats;
           memcpy(module->histogram_max, piece->histogram_max, sizeof(piece->histogram_max));
 
-          dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+          dt_pthread_mutex_unlock(&pipe->busy_mutex);
 
           if(module->widget) dt_control_queue_redraw_widget(module->widget);
 
-          dt_pthread_mutex_safe_lock(&pipe->busy_mutex);
+          dt_pthread_mutex_lock(&pipe->busy_mutex);
         }
       }
 
       if(pipe->shutdown)
       {
-        dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+        dt_pthread_mutex_unlock(&pipe->busy_mutex);
         return 1;
       }
 
@@ -1530,7 +1530,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
 
       if(pipe->shutdown)
       {
-        dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+        dt_pthread_mutex_unlock(&pipe->busy_mutex);
         return 1;
       }
 
@@ -1546,16 +1546,16 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
                          module->picked_output_color_min, module->picked_output_color_max,
                          PIXELPIPE_PICKER_OUTPUT);
 
-        dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+        dt_pthread_mutex_unlock(&pipe->busy_mutex);
 
         if(module->widget) dt_control_queue_redraw_widget(module->widget);
 
-        dt_pthread_mutex_safe_lock(&pipe->busy_mutex);
+        dt_pthread_mutex_lock(&pipe->busy_mutex);
       }
 
       if(pipe->shutdown)
       {
-        dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+        dt_pthread_mutex_unlock(&pipe->busy_mutex);
         return 1;
       }
 
@@ -1582,17 +1582,17 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
         module->histogram_stats = piece->histogram_stats;
         memcpy(module->histogram_max, piece->histogram_max, sizeof(piece->histogram_max));
 
-        dt_pthread_mutex_unlock(&pipe->busy_mutex);
+        dt_pthread_mutex_BAD_unlock(&pipe->busy_mutex);
 
         if(module->widget) dt_control_queue_redraw_widget(module->widget);
 
-        dt_pthread_mutex_lock(&pipe->busy_mutex);
+        dt_pthread_mutex_BAD_lock(&pipe->busy_mutex);
       }
     }
 
     if(pipe->shutdown)
     {
-      dt_pthread_mutex_unlock(&pipe->busy_mutex);
+      dt_pthread_mutex_BAD_unlock(&pipe->busy_mutex);
       return 1;
     }
 
@@ -1615,7 +1615,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
 
     if(pipe->shutdown)
     {
-      dt_pthread_mutex_unlock(&pipe->busy_mutex);
+      dt_pthread_mutex_BAD_unlock(&pipe->busy_mutex);
       return 1;
     }
 
@@ -1630,16 +1630,16 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
       pixelpipe_picker(module, &pipe->dsc, (float *)(*output), roi_out, module->picked_output_color,
                        module->picked_output_color_min, module->picked_output_color_max, PIXELPIPE_PICKER_OUTPUT);
 
-      dt_pthread_mutex_unlock(&pipe->busy_mutex);
+      dt_pthread_mutex_BAD_unlock(&pipe->busy_mutex);
 
       if(module->widget) dt_control_queue_redraw_widget(module->widget);
 
-      dt_pthread_mutex_lock(&pipe->busy_mutex);
+      dt_pthread_mutex_BAD_lock(&pipe->busy_mutex);
     }
 
     if(pipe->shutdown)
     {
-      dt_pthread_mutex_unlock(&pipe->busy_mutex);
+      dt_pthread_mutex_BAD_unlock(&pipe->busy_mutex);
       return 1;
     }
 
@@ -1678,7 +1678,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
     // in case we get this buffer from the cache in the future, cache some stuff:
     **out_format = piece->dsc_out = pipe->dsc;
 
-    dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+    dt_pthread_mutex_unlock(&pipe->busy_mutex);
     if(module == darktable.develop->gui_module)
     {
       // give the input buffer to the currently focussed plugin more weight.
@@ -1689,16 +1689,16 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
     if(darktable.unmuted & DT_DEBUG_NAN)
 #endif
     {
-      dt_pthread_mutex_safe_lock(&pipe->busy_mutex);
+      dt_pthread_mutex_lock(&pipe->busy_mutex);
       if(pipe->shutdown)
       {
-        dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+        dt_pthread_mutex_unlock(&pipe->busy_mutex);
         return 1;
       }
 
       if(strcmp(module->op, "gamma") == 0)
       {
-        dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+        dt_pthread_mutex_unlock(&pipe->busy_mutex);
         goto post_process_collect_info;
       }
 
@@ -1771,15 +1771,15 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
         g_free(module_label);
       }
 
-      dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+      dt_pthread_mutex_unlock(&pipe->busy_mutex);
     }
 
   post_process_collect_info:
 
-    dt_pthread_mutex_safe_lock(&pipe->busy_mutex);
+    dt_pthread_mutex_lock(&pipe->busy_mutex);
     if(pipe->shutdown)
     {
-      dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+      dt_pthread_mutex_unlock(&pipe->busy_mutex);
       return 1;
     }
     // Picking RGB for the live samples and converting to Lab
@@ -1968,19 +1968,19 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
         pthread_rwlock_unlock(&darktable.color_profiles->xprofile_lock);
 
 
-      dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+      dt_pthread_mutex_unlock(&pipe->busy_mutex);
 
       if(module->widget) dt_control_queue_redraw_widget(module->widget);
     }
     else
-      dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+      dt_pthread_mutex_unlock(&pipe->busy_mutex);
 
 
     // 4) final histogram:
-    dt_pthread_mutex_safe_lock(&pipe->busy_mutex);
+    dt_pthread_mutex_lock(&pipe->busy_mutex);
     if(pipe->shutdown)
     {
-      dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+      dt_pthread_mutex_unlock(&pipe->busy_mutex);
       return 1;
     }
     if(dev->gui_attached && !dev->gui_leaving && pipe == dev->preview_pipe
@@ -2042,7 +2042,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
       // size (thus the weird gui stuff :().
       // this HAS to be done on the float input data, otherwise we get really ugly artefacts due to rounding
       // issues when putting colors into the bins.
-      //       dt_pthread_mutex_lock(&dev->histogram_waveform_mutex);
+      //       dt_pthread_mutex_BAD_lock(&dev->histogram_waveform_mutex);
       if(dev->histogram_waveform_width != 0 && input)
       {
         uint32_t *buf = (uint32_t *)calloc(dev->histogram_waveform_height * dev->histogram_waveform_width * 3,
@@ -2109,17 +2109,17 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
 
         free(buf);
       }
-      //       dt_pthread_mutex_unlock(&dev->histogram_waveform_mutex);
+      //       dt_pthread_mutex_BAD_unlock(&dev->histogram_waveform_mutex);
 
 
-      dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+      dt_pthread_mutex_unlock(&pipe->busy_mutex);
 
       /* raise preview pipe finished signal */
       dt_control_signal_raise(darktable.signals, DT_SIGNAL_DEVELOP_PREVIEW_PIPE_FINISHED);
     }
     else
     {
-      dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+      dt_pthread_mutex_unlock(&pipe->busy_mutex);
 
       /* if gui attached, lets raise pipe finish signal */
       if(dev->gui_attached && !dev->gui_leaving && strcmp(module->op, "gamma") == 0)
@@ -2188,7 +2188,7 @@ static int dt_dev_pixelpipe_process_rec_and_backcopy(dt_dev_pixelpipe_t *pipe, d
       = dt_dev_pixelpipe_process_rec(pipe, dev, output, cl_mem_output, out_format, roi_out, modules, pieces, pos);
 
   // copy back final opencl buffer (if any) to CPU
-  dt_pthread_mutex_safe_lock(&pipe->busy_mutex);
+  dt_pthread_mutex_lock(&pipe->busy_mutex);
   if(ret)
   {
     dt_opencl_release_mem_object(*cl_mem_output);
@@ -2216,7 +2216,7 @@ static int dt_dev_pixelpipe_process_rec_and_backcopy(dt_dev_pixelpipe_t *pipe, d
       }
     }
   }
-  dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+  dt_pthread_mutex_unlock(&pipe->busy_mutex);
 
   return ret;
 #else
@@ -2284,11 +2284,11 @@ restart:
     // Well, there were errors -> we might need to free an invalid opencl memory object
     dt_opencl_release_mem_object(cl_mem_out);
     dt_opencl_unlock_device(pipe->devid); // release opencl resource
-    dt_pthread_mutex_safe_lock(&pipe->busy_mutex);
+    dt_pthread_mutex_lock(&pipe->busy_mutex);
     pipe->opencl_enabled = 0; // disable opencl for this pipe
     pipe->opencl_error = 0;   // reset error status
     pipe->devid = -1;
-    dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+    dt_pthread_mutex_unlock(&pipe->busy_mutex);
 
     darktable.opencl->error_count++; // increase error count
     if(darktable.opencl->error_count >= DT_OPENCL_MAX_ERRORS)
@@ -2325,12 +2325,12 @@ restart:
   }
 
   // terminate
-  dt_pthread_mutex_safe_lock(&pipe->backbuf_mutex);
+  dt_pthread_mutex_lock(&pipe->backbuf_mutex);
   pipe->backbuf_hash = dt_dev_pixelpipe_cache_hash(pipe->image.id, &roi, pipe, 0);
   pipe->backbuf = buf;
   pipe->backbuf_width = width;
   pipe->backbuf_height = height;
-  dt_pthread_mutex_safe_unlock(&pipe->backbuf_mutex);
+  dt_pthread_mutex_unlock(&pipe->backbuf_mutex);
 
   // printf("pixelpipe homebrew process end\n");
   pipe->processing = 0;
@@ -2345,7 +2345,7 @@ void dt_dev_pixelpipe_flush_caches(dt_dev_pixelpipe_t *pipe)
 void dt_dev_pixelpipe_get_dimensions(dt_dev_pixelpipe_t *pipe, struct dt_develop_t *dev, int width_in,
                                      int height_in, int *width, int *height)
 {
-  dt_pthread_mutex_safe_lock(&pipe->busy_mutex);
+  dt_pthread_mutex_lock(&pipe->busy_mutex);
   dt_iop_roi_t roi_in = (dt_iop_roi_t){ 0, 0, width_in, height_in, 1.0 };
   dt_iop_roi_t roi_out;
   GList *modules = dev->iop;
@@ -2377,7 +2377,7 @@ void dt_dev_pixelpipe_get_dimensions(dt_dev_pixelpipe_t *pipe, struct dt_develop
   }
   *width = roi_out.width;
   *height = roi_out.height;
-  dt_pthread_mutex_safe_unlock(&pipe->busy_mutex);
+  dt_pthread_mutex_unlock(&pipe->busy_mutex);
 }
 
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh

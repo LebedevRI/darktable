@@ -77,7 +77,7 @@ typedef struct dt_opencl_eventtag_t
  */
 typedef struct dt_opencl_device_t
 {
-  dt_pthread_mutex_safe_t lock;
+  dt_pthread_mutex_t lock;
   cl_device_id devid;
   cl_context context;
   cl_command_queue cmd_queue;
@@ -118,7 +118,7 @@ struct dt_local_laplacian_cl_global_t;
  */
 typedef struct dt_opencl_t
 {
-  dt_pthread_mutex_safe_t lock;
+  dt_pthread_mutex_t lock;
   int inited;
   int avoid_atomics;
   int use_events;

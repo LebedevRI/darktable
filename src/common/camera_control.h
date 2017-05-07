@@ -48,7 +48,7 @@ typedef struct dt_camera_t
   CameraTimeoutFunc timeout;
 
   gboolean config_changed;
-  dt_pthread_mutex_safe_t config_lock;
+  dt_pthread_mutex_t config_lock;
   /** This camera/device can import images. */
   gboolean can_import;
   /** This camera/device can do tethered shoots. */
@@ -64,7 +64,7 @@ typedef struct dt_camera_t
   gboolean is_tethering;
 
   /** A mutex lock for jobqueue */
-  dt_pthread_mutex_safe_t jobqueue_lock;
+  dt_pthread_mutex_t jobqueue_lock;
   /** The jobqueue */
   GList *jobqueue;
 
@@ -97,9 +97,9 @@ typedef struct dt_camera_t
   /** The thread adding the live view jobs */
   pthread_t live_view_thread;
   /** A guard so that writing and reading the pixbuf don't interfere */
-  dt_pthread_mutex_safe_t live_view_pixbuf_mutex;
+  dt_pthread_mutex_t live_view_pixbuf_mutex;
   /** A flag to tell the live view thread that the last job was completed */
-  dt_pthread_mutex_t live_view_synch;
+  dt_pthread_mutex_BAD_t live_view_synch;
 } dt_camera_t;
 
 /** Camera control status.
@@ -133,8 +133,8 @@ typedef enum dt_camera_error_t
 /** Context of camera control */
 typedef struct dt_camctl_t
 {
-  dt_pthread_mutex_t lock;
-  dt_pthread_mutex_safe_t listeners_lock;
+  dt_pthread_mutex_BAD_t lock;
+  dt_pthread_mutex_t listeners_lock;
 
   /** Camera event thread. */
   pthread_t camera_event_thread;

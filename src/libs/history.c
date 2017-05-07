@@ -401,7 +401,7 @@ static void _lib_history_change_callback(gpointer instance, gpointer user_data)
     d->record_undo = TRUE;
 
   /* lock history mutex */
-  dt_pthread_mutex_safe_lock(&darktable.develop->history_mutex);
+  dt_pthread_mutex_lock(&darktable.develop->history_mutex);
 
   /* iterate over history items and add them to list*/
   GList *history = g_list_first(darktable.develop->history);
@@ -429,7 +429,7 @@ static void _lib_history_change_callback(gpointer instance, gpointer user_data)
   /* show all widgets */
   gtk_widget_show_all(d->history_box);
 
-  dt_pthread_mutex_safe_unlock(&darktable.develop->history_mutex);
+  dt_pthread_mutex_unlock(&darktable.develop->history_mutex);
 }
 
 static void _lib_history_compress_clicked_callback(GtkWidget *widget, gpointer user_data)

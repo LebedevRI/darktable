@@ -151,19 +151,19 @@ typedef struct dt_control_t
   char log_message[DT_CTL_LOG_SIZE][DT_CTL_LOG_MSG_SIZE];
   guint log_message_timeout_id;
   int log_busy;
-  dt_pthread_mutex_safe_t log_mutex;
+  dt_pthread_mutex_t log_mutex;
 
   // gui settings
-  dt_pthread_mutex_safe_t global_mutex;
+  dt_pthread_mutex_t global_mutex;
   double last_expose_time;
   int key_accelerators_on;
 
   // job management
   int32_t running;
   gboolean export_scheduled;
-  dt_pthread_mutex_safe_t queue_mutex;
-  dt_pthread_mutex_safe_t cond_mutex;
-  dt_pthread_mutex_safe_t run_mutex;
+  dt_pthread_mutex_t queue_mutex;
+  dt_pthread_mutex_t cond_mutex;
+  dt_pthread_mutex_t run_mutex;
   pthread_cond_t cond;
   int32_t num_threads;
   pthread_t *thread, kick_on_workers_thread;
@@ -172,7 +172,7 @@ typedef struct dt_control_t
   GList *queues[DT_JOB_QUEUE_MAX];
   size_t queue_length[DT_JOB_QUEUE_MAX];
 
-  dt_pthread_mutex_safe_t res_mutex;
+  dt_pthread_mutex_t res_mutex;
   dt_job_t *job_res[DT_CTL_WORKER_RESERVED];
   uint8_t new_res[DT_CTL_WORKER_RESERVED];
   pthread_t thread_res[DT_CTL_WORKER_RESERVED];
@@ -181,7 +181,7 @@ typedef struct dt_control_t
   {
     GList *list;
     size_t list_length;
-    dt_pthread_mutex_safe_t mutex;
+    dt_pthread_mutex_t mutex;
 
     // these proxy functions should ONLY be used by control/process.c!
     struct

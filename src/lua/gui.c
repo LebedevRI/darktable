@@ -165,9 +165,9 @@ static int lua_job_progress(lua_State *L)
 {
   dt_progress_t *progress;
   luaA_to(L, dt_lua_backgroundjob_t, &progress, 1);
-  dt_pthread_mutex_safe_lock(&darktable.control->progress_system.mutex);
+  dt_pthread_mutex_lock(&darktable.control->progress_system.mutex);
   GList *iter = g_list_find(darktable.control->progress_system.list, progress);
-  dt_pthread_mutex_safe_unlock(&darktable.control->progress_system.mutex);
+  dt_pthread_mutex_unlock(&darktable.control->progress_system.mutex);
   if(!iter) luaL_error(L, "Accessing an invalid job");
   if(lua_isnone(L, 3))
   {
@@ -193,9 +193,9 @@ static int lua_job_valid(lua_State *L)
   luaA_to(L, dt_lua_backgroundjob_t, &progress, 1);
   if(lua_isnone(L, 3))
   {
-    dt_pthread_mutex_safe_lock(&darktable.control->progress_system.mutex);
+    dt_pthread_mutex_lock(&darktable.control->progress_system.mutex);
     GList *iter = g_list_find(darktable.control->progress_system.list, progress);
-    dt_pthread_mutex_safe_unlock(&darktable.control->progress_system.mutex);
+    dt_pthread_mutex_unlock(&darktable.control->progress_system.mutex);
 
     if(iter)
       lua_pushboolean(L, true);

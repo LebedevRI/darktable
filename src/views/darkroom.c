@@ -185,7 +185,7 @@ void expose(
   {
     // draw image
     roi_hash_old = roi_hash;
-    dt_pthread_mutex_safe_lock(&dev->pipe->backbuf_mutex);
+    dt_pthread_mutex_lock(&dev->pipe->backbuf_mutex);
     float wd = dev->pipe->backbuf_width;
     float ht = dev->pipe->backbuf_height;
     stride = cairo_format_stride_for_width(CAIRO_FORMAT_RGB24, wd);
@@ -211,14 +211,14 @@ void expose(
     cairo_set_source_rgb(cr, .3, .3, .3);
     cairo_stroke(cr);
     cairo_surface_destroy(surface);
-    dt_pthread_mutex_safe_unlock(&dev->pipe->backbuf_mutex);
+    dt_pthread_mutex_unlock(&dev->pipe->backbuf_mutex);
     image_surface_imgid = dev->image_storage.id;
   }
   else if((dev->preview_status == DT_DEV_PIXELPIPE_VALID) && (roi_hash != roi_hash_old))
   {
     // draw preview
     roi_hash_old = roi_hash;
-    dt_pthread_mutex_safe_lock(&dev->preview_pipe->backbuf_mutex);
+    dt_pthread_mutex_lock(&dev->preview_pipe->backbuf_mutex);
 
     const float wd = dev->preview_pipe->backbuf_width;
     const float ht = dev->preview_pipe->backbuf_height;
@@ -239,7 +239,7 @@ void expose(
     cairo_pattern_set_filter(cairo_get_source(cr), CAIRO_FILTER_FAST);
     cairo_fill(cr);
     cairo_surface_destroy(surface);
-    dt_pthread_mutex_safe_unlock(&dev->preview_pipe->backbuf_mutex);
+    dt_pthread_mutex_unlock(&dev->preview_pipe->backbuf_mutex);
     image_surface_imgid = dev->image_storage.id;
   }
   cairo_restore(cri);
@@ -508,10 +508,10 @@ static void dt_dev_change_image(dt_develop_t *dev, const uint32_t imgid)
   // worst case, it'll drop some change image events. sorry.
 
   // https://bugs.llvm.org/show_bug.cgi?id=32954
-  if(dt_pthread_mutex_trylock(&dev->preview_pipe_mutex.Mutex)) return;
-  if(dt_pthread_mutex_trylock(&dev->pipe_mutex.Mutex))
+  if(dt_pthread_mutex_BAD_trylock(&dev->preview_pipe_mutex.Mutex)) return;
+  if(dt_pthread_mutex_BAD_trylock(&dev->pipe_mutex.Mutex))
   {
-    dt_pthread_mutex_unlock(&dev->preview_pipe_mutex.Mutex);
+    dt_pthread_mutex_BAD_unlock(&dev->preview_pipe_mutex.Mutex);
     return;
   }
 
@@ -709,8 +709,8 @@ static void dt_dev_change_image(dt_develop_t *dev, const uint32_t imgid)
   dt_view_filmstrip_prefetch();
 
   // release pixel pipe mutices
-  dt_pthread_mutex_unlock(&dev->preview_pipe_mutex.Mutex);
-  dt_pthread_mutex_unlock(&dev->pipe_mutex.Mutex);
+  dt_pthread_mutex_BAD_unlock(&dev->preview_pipe_mutex.Mutex);
+  dt_pthread_mutex_BAD_unlock(&dev->pipe_mutex.Mutex);
 
   // update hint message
   dt_collection_hint_message(darktable.collection);
@@ -1951,15 +1951,15 @@ void leave(dt_view_t *self)
 
   // clear gui.
 
-  dt_pthread_mutex_safe_lock(&dev->preview_pipe_mutex);
-  dt_pthread_mutex_safe_lock(&dev->pipe_mutex);
+  dt_pthread_mutex_lock(&dev->preview_pipe_mutex);
+  dt_pthread_mutex_lock(&dev->pipe_mutex);
 
   dev->gui_leaving = 1;
 
   dt_dev_pixelpipe_cleanup_nodes(dev->pipe);
   dt_dev_pixelpipe_cleanup_nodes(dev->preview_pipe);
 
-  dt_pthread_mutex_safe_lock(&dev->history_mutex);
+  dt_pthread_mutex_lock(&dev->history_mutex);
   while(dev->history)
   {
     dt_dev_history_item_t *hist = (dt_dev_history_item_t *)(dev->history->data);
@@ -1985,10 +1985,10 @@ void leave(dt_view_t *self)
     dev->iop = g_list_delete_link(dev->iop, dev->iop);
   }
 
-  dt_pthread_mutex_safe_unlock(&dev->history_mutex);
+  dt_pthread_mutex_unlock(&dev->history_mutex);
 
-  dt_pthread_mutex_safe_unlock(&dev->pipe_mutex);
-  dt_pthread_mutex_safe_unlock(&dev->preview_pipe_mutex);
+  dt_pthread_mutex_unlock(&dev->pipe_mutex);
+  dt_pthread_mutex_unlock(&dev->preview_pipe_mutex);
 
   // cleanup visible masks
   if(dev->form_gui)

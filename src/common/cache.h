@@ -41,7 +41,7 @@ typedef void((*dt_cache_cleanup_t)(void *userdata, dt_cache_entry_t *entry));
 typedef struct dt_cache_t
 {
   // big fat lock. we're only expecting a couple hand full of cpu threads to use this concurrently.
-  dt_pthread_mutex_safe_t lock;
+  dt_pthread_mutex_t lock;
 
   size_t entry_size; // cache line allocation
   size_t cost;       // user supplied cost per cache line (bytes?)

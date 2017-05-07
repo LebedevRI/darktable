@@ -121,13 +121,13 @@ void dt_lua_init_lock()
   pthread_mutexattr_t a;
   pthread_mutexattr_init(&a);
   //pthread_mutexattr_settype(&a, PTHREAD_MUTEX_RECURSIVE);
-  dt_pthread_mutex_safe_init(&darktable.lua_state.mutex, &a);
+  dt_pthread_mutex_init(&darktable.lua_state.mutex, &a);
   pthread_mutexattr_destroy(&a);
   pthread_cond_init(&darktable.lua_state.cond,NULL);
   // we want our lock initialized locked
-  dt_pthread_mutex_safe_lock(&darktable.lua_state.mutex);
+  dt_pthread_mutex_lock(&darktable.lua_state.mutex);
   darktable.lua_state.exec_lock = true;
-  dt_pthread_mutex_safe_unlock(&darktable.lua_state.mutex);
+  dt_pthread_mutex_unlock(&darktable.lua_state.mutex);
 }
 
 void dt_lua_lock_internal(const char *function, const char *file, int line, gboolean silent)
@@ -141,12 +141,12 @@ void dt_lua_lock_internal(const char *function, const char *file, int line, gboo
 #ifdef _DEBUG
   dt_print(DT_DEBUG_LUA,"LUA DEBUG : thread %p waiting from %s:%d\n", g_thread_self(), function, line);
 #endif
-  dt_pthread_mutex_safe_lock(&darktable.lua_state.mutex);
+  dt_pthread_mutex_lock(&darktable.lua_state.mutex);
   while(darktable.lua_state.exec_lock == true) {
-    dt_pthread_cond_wait_safe(&darktable.lua_state.cond, &darktable.lua_state.mutex);
+    dt_pthread_cond_wait(&darktable.lua_state.cond, &darktable.lua_state.mutex);
   }
   darktable.lua_state.exec_lock = true;
-  dt_pthread_mutex_safe_unlock(&darktable.lua_state.mutex);
+  dt_pthread_mutex_unlock(&darktable.lua_state.mutex);
 #ifdef _DEBUG
   dt_print(DT_DEBUG_LUA,"LUA DEBUG : thread %p taken from %s:%d\n",  g_thread_self(), function, line);
 #endif
@@ -156,10 +156,10 @@ void dt_lua_unlock_internal(const char *function, int line)
 #ifdef _DEBUG
   dt_print(DT_DEBUG_LUA,"LUA DEBUG : thread %p released from %s:%d\n",g_thread_self(), function,line);
 #endif
-  dt_pthread_mutex_safe_lock(&darktable.lua_state.mutex);
+  dt_pthread_mutex_lock(&darktable.lua_state.mutex);
   darktable.lua_state.exec_lock = false;
   pthread_cond_signal(&darktable.lua_state.cond);
-  dt_pthread_mutex_safe_unlock(&darktable.lua_state.mutex);
+  dt_pthread_mutex_unlock(&darktable.lua_state.mutex);
 }
 
 static gboolean async_redraw(gpointer data)

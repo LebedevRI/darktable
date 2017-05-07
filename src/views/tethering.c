@@ -173,7 +173,7 @@ static void _expose_tethered_mode(dt_view_t *self, cairo_t *cr, int32_t width, i
 
   if(cam->is_live_viewing == TRUE) // display the preview
   {
-    dt_pthread_mutex_safe_lock(&cam->live_view_pixbuf_mutex);
+    dt_pthread_mutex_lock(&cam->live_view_pixbuf_mutex);
     if(GDK_IS_PIXBUF(cam->live_view_pixbuf))
     {
       gint pw = gdk_pixbuf_get_width(cam->live_view_pixbuf);
@@ -198,7 +198,7 @@ static void _expose_tethered_mode(dt_view_t *self, cairo_t *cr, int32_t width, i
       gdk_cairo_set_source_pixbuf(cr, cam->live_view_pixbuf, 0, 0);
       cairo_paint(cr);
     }
-    dt_pthread_mutex_safe_unlock(&cam->live_view_pixbuf_mutex);
+    dt_pthread_mutex_unlock(&cam->live_view_pixbuf_mutex);
   }
   else if(lib->image_id >= 0) // First of all draw image if availble
   {

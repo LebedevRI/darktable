@@ -37,7 +37,7 @@ void dt_cache_init(
   cache->lru = 0;
   cache->entry_size = entry_size;
   cache->cost_quota = cost_quota;
-  dt_pthread_mutex_safe_init(&cache->lock, 0);
+  dt_pthread_mutex_init(&cache->lock, 0);
   cache->allocate = 0;
   cache->allocate_data = 0;
   cache->cleanup = 0;
@@ -68,14 +68,14 @@ void dt_cache_cleanup(dt_cache_t *cache)
     l = g_list_next(l);
   }
   g_list_free(cache->lru);
-  dt_pthread_mutex_safe_destroy(&cache->lock);
+  dt_pthread_mutex_destroy(&cache->lock);
 }
 
 int32_t dt_cache_contains(dt_cache_t *cache, const uint32_t key)
 {
-  dt_pthread_mutex_safe_lock(&cache->lock);
+  dt_pthread_mutex_lock(&cache->lock);
   int32_t result = g_hash_table_contains(cache->hashtable, GINT_TO_POINTER(key));
-  dt_pthread_mutex_safe_unlock(&cache->lock);
+  dt_pthread_mutex_unlock(&cache->lock);
   return result;
 }
 
@@ -84,7 +84,7 @@ int dt_cache_for_all(
     int (*process)(const uint32_t key, const void *data, void *user_data),
     void *user_data)
 {
-  dt_pthread_mutex_safe_lock(&cache->lock);
+  dt_pthread_mutex_lock(&cache->lock);
   GHashTableIter iter;
   gpointer key, value;
 
@@ -95,11 +95,11 @@ int dt_cache_for_all(
     const int err = process(GPOINTER_TO_INT(key), entry->data, user_data);
     if(err)
     {
-      dt_pthread_mutex_safe_unlock(&cache->lock);
+      dt_pthread_mutex_unlock(&cache->lock);
       return err;
     }
   }
-  dt_pthread_mutex_safe_unlock(&cache->lock);
+  dt_pthread_mutex_unlock(&cache->lock);
   return 0;
 }
 
@@ -111,7 +111,7 @@ dt_cache_entry_t *dt_cache_testget(dt_cache_t *cache, const uint32_t key, char m
   gboolean res;
   int result;
   double start = dt_get_wtime();
-  dt_pthread_mutex_safe_lock(&cache->lock);
+  dt_pthread_mutex_lock(&cache->lock);
   res = g_hash_table_lookup_extended(
       cache->hashtable, GINT_TO_POINTER(key), &orig_key, &value);
   if(res)
@@ -123,13 +123,13 @@ dt_cache_entry_t *dt_cache_testget(dt_cache_t *cache, const uint32_t key, char m
     if(result)
     { // need to give up mutex so other threads have a chance to get in between and
       // free the lock we're trying to acquire:
-      dt_pthread_mutex_safe_unlock(&cache->lock);
+      dt_pthread_mutex_unlock(&cache->lock);
       return 0;
     }
     // bubble up in lru list:
     cache->lru = g_list_remove_link(cache->lru, entry->link);
     cache->lru = g_list_concat(cache->lru, entry->link);
-    dt_pthread_mutex_safe_unlock(&cache->lock);
+    dt_pthread_mutex_unlock(&cache->lock);
     double end = dt_get_wtime();
     if(end - start > 0.1)
       fprintf(stderr, "try+ wait time %.06fs mode %c \n", end - start, mode);
@@ -144,7 +144,7 @@ dt_cache_entry_t *dt_cache_testget(dt_cache_t *cache, const uint32_t key, char m
 
     return entry;
   }
-  dt_pthread_mutex_safe_unlock(&cache->lock);
+  dt_pthread_mutex_unlock(&cache->lock);
   double end = dt_get_wtime();
   if(end - start > 0.1)
     fprintf(stderr, "try- wait time %.06fs\n", end - start);
@@ -161,7 +161,7 @@ dt_cache_entry_t *dt_cache_get_with_caller(dt_cache_t *cache, const uint32_t key
   int result;
   double start = dt_get_wtime();
 restart:
-  dt_pthread_mutex_safe_lock(&cache->lock);
+  dt_pthread_mutex_lock(&cache->lock);
   res = g_hash_table_lookup_extended(
       cache->hashtable, GINT_TO_POINTER(key), &orig_key, &value);
   if(res)
@@ -172,14 +172,14 @@ restart:
     if(result)
     { // need to give up mutex so other threads have a chance to get in between and
       // free the lock we're trying to acquire:
-      dt_pthread_mutex_safe_unlock(&cache->lock);
+      dt_pthread_mutex_unlock(&cache->lock);
       g_usleep(5);
       goto restart;
     }
     // bubble up in lru list:
     cache->lru = g_list_remove_link(cache->lru, entry->link);
     cache->lru = g_list_concat(cache->lru, entry->link);
-    dt_pthread_mutex_safe_unlock(&cache->lock);
+    dt_pthread_mutex_unlock(&cache->lock);
 
 #ifdef _DEBUG
     const pthread_t writer = dt_pthread_rwlock_get_writer(&entry->lock);
@@ -249,7 +249,7 @@ restart:
   // put at end of lru list (most recently used):
   cache->lru = g_list_concat(cache->lru, entry->link);
 
-  dt_pthread_mutex_safe_unlock(&cache->lock);
+  dt_pthread_mutex_unlock(&cache->lock);
   double end = dt_get_wtime();
   if(end - start > 0.1)
     fprintf(stderr, "wait time %.06fs\n", end - start);
@@ -266,21 +266,21 @@ int dt_cache_remove(dt_cache_t *cache, const uint32_t key)
   int result;
   dt_cache_entry_t *entry;
 restart:
-  dt_pthread_mutex_safe_lock(&cache->lock);
+  dt_pthread_mutex_lock(&cache->lock);
 
   res = g_hash_table_lookup_extended(
       cache->hashtable, GINT_TO_POINTER(key), &orig_key, &value);
   entry = (dt_cache_entry_t *)value;
   if(!res)
   { // not found in cache, not deleting.
-    dt_pthread_mutex_safe_unlock(&cache->lock);
+    dt_pthread_mutex_unlock(&cache->lock);
     return 1;
   }
   // need write lock to be able to delete:
   result = dt_pthread_rwlock_trywrlock(&entry->lock);
   if(result)
   {
-    dt_pthread_mutex_safe_unlock(&cache->lock);
+    dt_pthread_mutex_unlock(&cache->lock);
     g_usleep(5);
     goto restart;
   }
@@ -289,7 +289,7 @@ restart:
   {
     // oops, we are currently demoting (rw -> r) lock to this entry in some thread. do not touch!
     dt_pthread_rwlock_unlock(&entry->lock);
-    dt_pthread_mutex_safe_unlock(&cache->lock);
+    dt_pthread_mutex_unlock(&cache->lock);
     g_usleep(5);
     goto restart;
   }
@@ -314,7 +314,7 @@ restart:
   cache->cost -= entry->cost;
   g_slice_free1(sizeof(*entry), entry);
 
-  dt_pthread_mutex_safe_unlock(&cache->lock);
+  dt_pthread_mutex_unlock(&cache->lock);
   return 0;
 }
 

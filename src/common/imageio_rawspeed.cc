@@ -55,7 +55,7 @@ static void dt_rawspeed_load_meta() {
   /* Load rawspeed cameras.xml meta file once */
   if(meta == NULL)
   {
-    dt_pthread_mutex_safe_lock(&darktable.plugin_threadsafe);
+    dt_pthread_mutex_lock(&darktable.plugin_threadsafe);
     if(meta == NULL)
     {
       char datadir[PATH_MAX] = { 0 }, camfile[PATH_MAX] = { 0 };
@@ -64,7 +64,7 @@ static void dt_rawspeed_load_meta() {
       // never cleaned up (only when dt closes)
       meta = new CameraMetaData(camfile);
     }
-    dt_pthread_mutex_safe_unlock(&darktable.plugin_threadsafe);
+    dt_pthread_mutex_unlock(&darktable.plugin_threadsafe);
   }
 }
 

@@ -60,7 +60,7 @@ void dt_dev_init(dt_develop_t *dev, int32_t gui_attached)
   dev->preview_average_delay = DT_DEV_PREVIEW_AVERAGE_DELAY_START;
   dev->gui_leaving = 0;
   dev->gui_synch = 0;
-  dt_pthread_mutex_safe_init(&dev->history_mutex, NULL);
+  dt_pthread_mutex_init(&dev->history_mutex, NULL);
   dev->history_end = 0;
   dev->history = NULL; // empty list
 
@@ -75,9 +75,9 @@ void dt_dev_init(dt_develop_t *dev, int32_t gui_attached)
   dev->preview_input_changed = 0;
 
   dev->pipe = dev->preview_pipe = NULL;
-  dt_pthread_mutex_safe_init(&dev->pipe_mutex, NULL);
-  dt_pthread_mutex_safe_init(&dev->preview_pipe_mutex, NULL);
-  //   dt_pthread_mutex_safe_init(&dev->histogram_waveform_mutex, NULL);
+  dt_pthread_mutex_init(&dev->pipe_mutex, NULL);
+  dt_pthread_mutex_init(&dev->preview_pipe_mutex, NULL);
+  //   dt_pthread_mutex_init(&dev->histogram_waveform_mutex, NULL);
   dev->histogram = NULL;
   dev->histogram_pre_tonecurve = NULL;
   dev->histogram_pre_levels = NULL;
@@ -131,9 +131,9 @@ void dt_dev_cleanup(dt_develop_t *dev)
 {
   if(!dev) return;
   // image_cache does not have to be unref'd, this is done outside develop module.
-  dt_pthread_mutex_safe_destroy(&dev->pipe_mutex);
-  dt_pthread_mutex_safe_destroy(&dev->preview_pipe_mutex);
-  //   dt_pthread_mutex_safe_destroy(&dev->histogram_waveform_mutex);
+  dt_pthread_mutex_destroy(&dev->pipe_mutex);
+  dt_pthread_mutex_destroy(&dev->preview_pipe_mutex);
+  //   dt_pthread_mutex_destroy(&dev->histogram_waveform_mutex);
   if(dev->pipe)
   {
     dt_dev_pixelpipe_cleanup(dev->pipe);
@@ -155,7 +155,7 @@ void dt_dev_cleanup(dt_develop_t *dev)
     free(dev->iop->data);
     dev->iop = g_list_delete_link(dev->iop, dev->iop);
   }
-  dt_pthread_mutex_safe_destroy(&dev->history_mutex);
+  dt_pthread_mutex_destroy(&dev->history_mutex);
   free(dev->histogram);
   free(dev->histogram_pre_tonecurve);
   free(dev->histogram_pre_levels);
@@ -211,11 +211,11 @@ void dt_dev_process_preview_job(dt_develop_t *dev)
     return;
   }
 
-  dt_pthread_mutex_safe_lock(&dev->preview_pipe_mutex);
+  dt_pthread_mutex_lock(&dev->preview_pipe_mutex);
 
   if(dev->gui_leaving)
   {
-    dt_pthread_mutex_safe_unlock(&dev->preview_pipe_mutex);
+    dt_pthread_mutex_unlock(&dev->preview_pipe_mutex);
     return;
   }
 
@@ -231,7 +231,7 @@ void dt_dev_process_preview_job(dt_develop_t *dev)
   {
     dt_control_log_busy_leave();
     dev->preview_status = DT_DEV_PIXELPIPE_DIRTY;
-    dt_pthread_mutex_safe_unlock(&dev->preview_pipe_mutex);
+    dt_pthread_mutex_unlock(&dev->preview_pipe_mutex);
     return; // not loaded yet. load will issue a gtk redraw on completion, which in turn will trigger us again
             // later.
   }
@@ -259,7 +259,7 @@ restart:
   {
     dt_control_log_busy_leave();
     dev->preview_status = DT_DEV_PIXELPIPE_INVALID;
-    dt_pthread_mutex_safe_unlock(&dev->preview_pipe_mutex);
+    dt_pthread_mutex_unlock(&dev->preview_pipe_mutex);
     dt_mipmap_cache_release(darktable.mipmap_cache, &buf);
     return;
   }
@@ -276,7 +276,7 @@ restart:
     {
       dt_control_log_busy_leave();
       dev->preview_status = DT_DEV_PIXELPIPE_INVALID;
-      dt_pthread_mutex_safe_unlock(&dev->preview_pipe_mutex);
+      dt_pthread_mutex_unlock(&dev->preview_pipe_mutex);
       dt_mipmap_cache_release(darktable.mipmap_cache, &buf);
       return;
     }
@@ -292,17 +292,17 @@ restart:
   // redraw the whole thing, to also update color picker values and histograms etc.
   if(dev->gui_attached) dt_control_queue_redraw();
   dt_control_log_busy_leave();
-  dt_pthread_mutex_safe_unlock(&dev->preview_pipe_mutex);
+  dt_pthread_mutex_unlock(&dev->preview_pipe_mutex);
   dt_mipmap_cache_release(darktable.mipmap_cache, &buf);
 }
 
 void dt_dev_process_image_job(dt_develop_t *dev)
 {
-  dt_pthread_mutex_safe_lock(&dev->pipe_mutex);
+  dt_pthread_mutex_lock(&dev->pipe_mutex);
 
   if(dev->gui_leaving)
   {
-    dt_pthread_mutex_safe_unlock(&dev->pipe_mutex);
+    dt_pthread_mutex_unlock(&dev->pipe_mutex);
     return;
   }
 
@@ -322,7 +322,7 @@ void dt_dev_process_image_job(dt_develop_t *dev)
   {
     dt_control_log_busy_leave();
     dev->image_status = DT_DEV_PIXELPIPE_DIRTY;
-    dt_pthread_mutex_safe_unlock(&dev->pipe_mutex);
+    dt_pthread_mutex_unlock(&dev->pipe_mutex);
     return;
   }
 
@@ -358,7 +358,7 @@ restart:
     dt_mipmap_cache_release(darktable.mipmap_cache, &buf);
     dt_control_log_busy_leave();
     dev->image_status = DT_DEV_PIXELPIPE_INVALID;
-    dt_pthread_mutex_safe_unlock(&dev->pipe_mutex);
+    dt_pthread_mutex_unlock(&dev->pipe_mutex);
     return;
   }
   dev->pipe->input_timestamp = dev->timestamp;
@@ -403,7 +403,7 @@ restart:
       dt_mipmap_cache_release(darktable.mipmap_cache, &buf);
       dt_control_log_busy_leave();
       dev->image_status = DT_DEV_PIXELPIPE_INVALID;
-      dt_pthread_mutex_safe_unlock(&dev->pipe_mutex);
+      dt_pthread_mutex_unlock(&dev->pipe_mutex);
       return;
     }
     // or because the pipeline changed?
@@ -424,7 +424,7 @@ restart:
   // redraw the whole thing, to also update color picker values and histograms etc.
   if(dev->gui_attached) dt_control_queue_redraw();
   dt_control_log_busy_leave();
-  dt_pthread_mutex_safe_unlock(&dev->pipe_mutex);
+  dt_pthread_mutex_unlock(&dev->pipe_mutex);
 }
 
 // load the raw and get the new image struct, blocking in gui thread
@@ -566,7 +566,7 @@ int dt_dev_write_history_item(const dt_image_t *image, dt_dev_history_item_t *h,
 void dt_dev_add_history_item(dt_develop_t *dev, dt_iop_module_t *module, gboolean enable)
 {
   if(darktable.gui->reset) return;
-  dt_pthread_mutex_safe_lock(&dev->history_mutex);
+  dt_pthread_mutex_lock(&dev->history_mutex);
   if(dev->gui_attached)
   {
     GList *history = g_list_nth(dev->history, dev->history_end);
@@ -668,7 +668,7 @@ void dt_dev_add_history_item(dt_develop_t *dev, dt_iop_module_t *module, gboolea
 
   // invalidate buffers and force redraw of darkroom
   dt_dev_invalidate_all(dev);
-  dt_pthread_mutex_safe_unlock(&dev->history_mutex);
+  dt_pthread_mutex_unlock(&dev->history_mutex);
 
   if(dev->gui_attached)
   {
@@ -780,7 +780,7 @@ void dt_dev_reload_history_items(dt_develop_t *dev)
 void dt_dev_pop_history_items(dt_develop_t *dev, int32_t cnt)
 {
   // printf("dev popping all history items >= %d\n", cnt);
-  dt_pthread_mutex_safe_lock(&dev->history_mutex);
+  dt_pthread_mutex_lock(&dev->history_mutex);
   darktable.gui->reset = 1;
   dev->history_end = cnt;
   // reset gui params for all modules
@@ -818,7 +818,7 @@ void dt_dev_pop_history_items(dt_develop_t *dev, int32_t cnt)
   dev->preview_pipe->changed |= DT_DEV_PIPE_SYNCH; // again, fixed topology for now.
   darktable.gui->reset = 0;
   dt_dev_invalidate_all(dev);
-  dt_pthread_mutex_safe_unlock(&dev->history_mutex);
+  dt_pthread_mutex_unlock(&dev->history_mutex);
   dt_control_queue_redraw_center();
 }
 
@@ -865,7 +865,7 @@ static void auto_apply_presets(dt_develop_t *dev)
   if(imgid <= 0) return;
 
   // be extra sure that we don't mess up history in separate threads:
-  dt_pthread_mutex_safe_lock(&darktable.db_insert);
+  dt_pthread_mutex_lock(&darktable.db_insert);
 
   int run = 0;
   dt_image_t *image = dt_image_cache_get(darktable.image_cache, imgid, 'w');
@@ -876,7 +876,7 @@ static void auto_apply_presets(dt_develop_t *dev)
   if(!run || image->id <= 0)
   {
     dt_image_cache_write_release(darktable.image_cache, image, DT_IMAGE_CACHE_RELAXED);
-    dt_pthread_mutex_safe_unlock(&darktable.db_insert);
+    dt_pthread_mutex_unlock(&darktable.db_insert);
     return;
   }
 
@@ -1005,7 +1005,7 @@ static void auto_apply_presets(dt_develop_t *dev)
   if(dev->image_loading) dt_lightroom_import(dev->image_storage.id, dev, TRUE);
 
   image->flags |= DT_IMAGE_AUTO_PRESETS_APPLIED | DT_IMAGE_NO_LEGACY_PRESETS;
-  dt_pthread_mutex_safe_unlock(&darktable.db_insert);
+  dt_pthread_mutex_unlock(&darktable.db_insert);
 
   // make sure these end up in the image_cache + xmp (sync through here if we set the flag)
   dt_image_cache_write_release(darktable.image_cache, image, DT_IMAGE_CACHE_SAFE);
@@ -1594,7 +1594,7 @@ void dt_dev_invalidate_history_module(GList *list, dt_iop_module_t *module)
 void dt_dev_module_remove(dt_develop_t *dev, dt_iop_module_t *module)
 {
   // if(darktable.gui->reset) return;
-  dt_pthread_mutex_safe_lock(&dev->history_mutex);
+  dt_pthread_mutex_lock(&dev->history_mutex);
   int del = 0;
   if(dev->gui_attached)
   {
@@ -1617,7 +1617,7 @@ void dt_dev_module_remove(dt_develop_t *dev, dt_iop_module_t *module)
     }
   }
 
-  dt_pthread_mutex_safe_unlock(&dev->history_mutex);
+  dt_pthread_mutex_unlock(&dev->history_mutex);
 
   // and we remove it from the list
   GList *modules = g_list_first(dev->iop);
@@ -1715,14 +1715,14 @@ int dt_dev_distort_backtransform(dt_develop_t *dev, float *points, size_t points
 int dt_dev_distort_transform_plus(dt_develop_t *dev, dt_dev_pixelpipe_t *pipe, int pmin, int pmax,
                                   float *points, size_t points_count)
 {
-  dt_pthread_mutex_safe_lock(&dev->history_mutex);
+  dt_pthread_mutex_lock(&dev->history_mutex);
   GList *modules = g_list_first(dev->iop);
   GList *pieces = g_list_first(pipe->nodes);
   while(modules)
   {
     if(!pieces)
     {
-      dt_pthread_mutex_safe_unlock(&dev->history_mutex);
+      dt_pthread_mutex_unlock(&dev->history_mutex);
       return 0;
     }
     dt_iop_module_t *module = (dt_iop_module_t *)(modules->data);
@@ -1735,21 +1735,21 @@ int dt_dev_distort_transform_plus(dt_develop_t *dev, dt_dev_pixelpipe_t *pipe, i
     modules = g_list_next(modules);
     pieces = g_list_next(pieces);
   }
-  dt_pthread_mutex_safe_unlock(&dev->history_mutex);
+  dt_pthread_mutex_unlock(&dev->history_mutex);
   return 1;
 }
 
 int dt_dev_distort_backtransform_plus(dt_develop_t *dev, dt_dev_pixelpipe_t *pipe, int pmin, int pmax,
                                       float *points, size_t points_count)
 {
-  dt_pthread_mutex_safe_lock(&dev->history_mutex);
+  dt_pthread_mutex_lock(&dev->history_mutex);
   GList *modules = g_list_last(dev->iop);
   GList *pieces = g_list_last(pipe->nodes);
   while(modules)
   {
     if(!pieces)
     {
-      dt_pthread_mutex_safe_unlock(&dev->history_mutex);
+      dt_pthread_mutex_unlock(&dev->history_mutex);
       return 0;
     }
     dt_iop_module_t *module = (dt_iop_module_t *)(modules->data);
@@ -1762,7 +1762,7 @@ int dt_dev_distort_backtransform_plus(dt_develop_t *dev, dt_dev_pixelpipe_t *pip
     modules = g_list_previous(modules);
     pieces = g_list_previous(pieces);
   }
-  dt_pthread_mutex_safe_unlock(&dev->history_mutex);
+  dt_pthread_mutex_unlock(&dev->history_mutex);
   return 1;
 }
 
@@ -1790,14 +1790,14 @@ uint64_t dt_dev_hash(dt_develop_t *dev)
 uint64_t dt_dev_hash_plus(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmin, int pmax)
 {
   uint64_t hash = 5381;
-  dt_pthread_mutex_safe_lock(&dev->history_mutex);
+  dt_pthread_mutex_lock(&dev->history_mutex);
   GList *modules = g_list_last(dev->iop);
   GList *pieces = g_list_last(pipe->nodes);
   while(modules)
   {
     if(!pieces)
     {
-      dt_pthread_mutex_safe_unlock(&dev->history_mutex);
+      dt_pthread_mutex_unlock(&dev->history_mutex);
       return 0;
     }
     dt_iop_module_t *module = (dt_iop_module_t *)(modules->data);
@@ -1809,12 +1809,12 @@ uint64_t dt_dev_hash_plus(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, in
     modules = g_list_previous(modules);
     pieces = g_list_previous(pieces);
   }
-  dt_pthread_mutex_safe_unlock(&dev->history_mutex);
+  dt_pthread_mutex_unlock(&dev->history_mutex);
   return hash;
 }
 
 int dt_dev_wait_hash(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmin, int pmax,
-                     dt_pthread_mutex_safe_t *lock, const volatile uint64_t *const hash)
+                     dt_pthread_mutex_t *lock, const volatile uint64_t *const hash)
 {
   const int usec = 5000;
   int nloop;
@@ -1839,9 +1839,9 @@ int dt_dev_wait_hash(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmi
 
     if(lock)
     {
-      dt_pthread_mutex_safe_lock(lock);
+      dt_pthread_mutex_lock(lock);
       probehash = *hash;
-      dt_pthread_mutex_safe_unlock(lock);
+      dt_pthread_mutex_unlock(lock);
     }
     else
       probehash = *hash;
@@ -1856,7 +1856,7 @@ int dt_dev_wait_hash(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmi
 }
 
 int dt_dev_sync_pixelpipe_hash(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmin, int pmax,
-                               dt_pthread_mutex_safe_t *lock, const volatile uint64_t *const hash)
+                               dt_pthread_mutex_t *lock, const volatile uint64_t *const hash)
 {
   // first wait for matching hash values
   if(dt_dev_wait_hash(dev, pipe, pmin, pmax, lock, hash))
@@ -1884,14 +1884,14 @@ uint64_t dt_dev_hash_distort(dt_develop_t *dev)
 uint64_t dt_dev_hash_distort_plus(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmin, int pmax)
 {
   uint64_t hash = 5381;
-  dt_pthread_mutex_safe_lock(&dev->history_mutex);
+  dt_pthread_mutex_lock(&dev->history_mutex);
   GList *modules = g_list_last(dev->iop);
   GList *pieces = g_list_last(pipe->nodes);
   while(modules)
   {
     if(!pieces)
     {
-      dt_pthread_mutex_safe_unlock(&dev->history_mutex);
+      dt_pthread_mutex_unlock(&dev->history_mutex);
       return 0;
     }
     dt_iop_module_t *module = (dt_iop_module_t *)(modules->data);
@@ -1904,12 +1904,12 @@ uint64_t dt_dev_hash_distort_plus(dt_develop_t *dev, struct dt_dev_pixelpipe_t *
     modules = g_list_previous(modules);
     pieces = g_list_previous(pieces);
   }
-  dt_pthread_mutex_safe_unlock(&dev->history_mutex);
+  dt_pthread_mutex_unlock(&dev->history_mutex);
   return hash;
 }
 
 int dt_dev_wait_hash_distort(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmin, int pmax,
-                             dt_pthread_mutex_safe_t *lock, const volatile uint64_t *const hash)
+                             dt_pthread_mutex_t *lock, const volatile uint64_t *const hash)
 {
   const int usec = 5000;
   int nloop;
@@ -1934,9 +1934,9 @@ int dt_dev_wait_hash_distort(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe,
 
     if(lock)
     {
-      dt_pthread_mutex_safe_lock(lock);
+      dt_pthread_mutex_lock(lock);
       probehash = *hash;
-      dt_pthread_mutex_safe_unlock(lock);
+      dt_pthread_mutex_unlock(lock);
     }
     else
       probehash = *hash;
@@ -1951,7 +1951,7 @@ int dt_dev_wait_hash_distort(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe,
 }
 
 int dt_dev_sync_pixelpipe_hash_distort(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmin, int pmax,
-                                       dt_pthread_mutex_safe_t *lock, const volatile uint64_t *const hash)
+                                       dt_pthread_mutex_t *lock, const volatile uint64_t *const hash)
 {
   // first wait for matching hash values
   if(dt_dev_wait_hash_distort(dev, pipe, pmin, pmax, lock, hash))

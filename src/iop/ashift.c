@@ -408,7 +408,7 @@ typedef struct dt_iop_ashift_gui_data_t
   float lasty;
   dt_iop_ashift_jobcode_t jobcode;
   int jobparams;
-  dt_pthread_mutex_safe_t lock;
+  dt_pthread_mutex_t lock;
 } dt_iop_ashift_gui_data_t;
 
 typedef struct dt_iop_ashift_data_t
@@ -1445,7 +1445,7 @@ static int get_structure(dt_iop_module_t *module, dt_iop_ashift_enhance_t enhanc
   int y_off = 0;
   float scale = 0.0f;
 
-  dt_pthread_mutex_safe_lock(&g->lock);
+  dt_pthread_mutex_lock(&g->lock);
   // read buffer data if they are available
   if(g->buf != NULL)
   {
@@ -1460,7 +1460,7 @@ static int get_structure(dt_iop_module_t *module, dt_iop_ashift_enhance_t enhanc
     if(buffer != NULL)
       memcpy(buffer, g->buf, (size_t)width * height * 4 * sizeof(float));
   }
-  dt_pthread_mutex_safe_unlock(&g->lock);
+  dt_pthread_mutex_unlock(&g->lock);
 
   if(buffer == NULL) goto error;
 
@@ -2509,9 +2509,9 @@ static int do_get_structure(dt_iop_module_t *module, dt_iop_ashift_params_t *p,
 
   g->fitting = 1;
 
-  dt_pthread_mutex_safe_lock(&g->lock);
+  dt_pthread_mutex_lock(&g->lock);
   float *b = g->buf;
-  dt_pthread_mutex_safe_unlock(&g->lock);
+  dt_pthread_mutex_unlock(&g->lock);
 
   if(b == NULL)
   {
@@ -2654,7 +2654,7 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
     // do modules coming before this one in pixelpipe have changed? -> check via hash value
     uint64_t hash = dt_dev_hash_plus(self->dev, self->dev->preview_pipe, 0, self->priority - 1);
 
-    dt_pthread_mutex_safe_lock(&g->lock);
+    dt_pthread_mutex_lock(&g->lock);
     g->isflipped = isflipped;
 
     // save a copy of preview input buffer for parameter fitting
@@ -2679,7 +2679,7 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
       g->buf_hash = hash;
     }
 
-    dt_pthread_mutex_safe_unlock(&g->lock);
+    dt_pthread_mutex_unlock(&g->lock);
   }
 
   // if module is set to neutral parameters we just copy input->output and are done
@@ -2786,7 +2786,7 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
     // do modules coming before this one in pixelpipe have changed? -> check via hash value
     uint64_t hash = dt_dev_hash_plus(self->dev, self->dev->preview_pipe, 0, self->priority - 1);
 
-    dt_pthread_mutex_safe_lock(&g->lock);
+    dt_pthread_mutex_lock(&g->lock);
     g->isflipped = isflipped;
 
     // save a copy of preview input buffer for parameter fitting
@@ -2810,7 +2810,7 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
       g->buf_scale = scale;
       g->buf_hash = hash;
     }
-    dt_pthread_mutex_safe_unlock(&g->lock);
+    dt_pthread_mutex_unlock(&g->lock);
     if(err != CL_SUCCESS) goto error;
   }
 
@@ -4179,7 +4179,7 @@ void reload_defaults(dt_iop_module_t *module)
     dt_bauhaus_slider_set_default(g->f_length, tmp.f_length);
     dt_bauhaus_slider_set_default(g->crop_factor, tmp.crop_factor);
 
-    dt_pthread_mutex_safe_lock(&g->lock);
+    dt_pthread_mutex_lock(&g->lock);
     free(g->buf);
     g->buf = NULL;
     g->buf_width = 0;
@@ -4190,7 +4190,7 @@ void reload_defaults(dt_iop_module_t *module)
     g->buf_hash = 0;
     g->isflipped = -1;
     g->lastfit = ASHIFT_FIT_NONE;
-    dt_pthread_mutex_safe_unlock(&g->lock);
+    dt_pthread_mutex_unlock(&g->lock);
 
     g->fitting = 0;
     free(g->lines);
@@ -4261,9 +4261,9 @@ static gboolean draw(GtkWidget *widget, cairo_t *cr, dt_iop_module_t *self)
   dt_iop_ashift_gui_data_t *g = (dt_iop_ashift_gui_data_t *)self->gui_data;
   if(darktable.gui->reset) return FALSE;
 
-  dt_pthread_mutex_safe_lock(&g->lock);
+  dt_pthread_mutex_lock(&g->lock);
   const int isflipped = g->isflipped;
-  dt_pthread_mutex_safe_unlock(&g->lock);
+  dt_pthread_mutex_unlock(&g->lock);
 
   if(isflipped == -1) return FALSE;
 
@@ -4328,8 +4328,8 @@ void gui_init(struct dt_iop_module_t *self)
   dt_iop_ashift_gui_data_t *g = (dt_iop_ashift_gui_data_t *)self->gui_data;
   dt_iop_ashift_params_t *p = (dt_iop_ashift_params_t *)self->params;
 
-  dt_pthread_mutex_safe_init(&g->lock, NULL);
-  dt_pthread_mutex_safe_lock(&g->lock);
+  dt_pthread_mutex_init(&g->lock, NULL);
+  dt_pthread_mutex_lock(&g->lock);
   g->buf = NULL;
   g->buf_width = 0;
   g->buf_height = 0;
@@ -4339,7 +4339,7 @@ void gui_init(struct dt_iop_module_t *self)
   g->buf_hash = 0;
   g->isflipped = -1;
   g->lastfit = ASHIFT_FIT_NONE;
-  dt_pthread_mutex_safe_unlock(&g->lock);
+  dt_pthread_mutex_unlock(&g->lock);
 
   g->fitting = 0;
   g->lines = NULL;
@@ -4574,7 +4574,7 @@ void gui_cleanup(struct dt_iop_module_t *self)
   dt_control_signal_disconnect(darktable.signals, G_CALLBACK(process_after_preview_callback), self);
 
   dt_iop_ashift_gui_data_t *g = (dt_iop_ashift_gui_data_t *)self->gui_data;
-  dt_pthread_mutex_safe_destroy(&g->lock);
+  dt_pthread_mutex_destroy(&g->lock);
   free(g->lines);
   free(g->buf);
   free(g->points);

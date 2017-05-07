@@ -31,9 +31,9 @@ static int32_t dt_film_import1_run(dt_job_t *job)
 {
   dt_film_import1_t *params = dt_control_job_get_params(job);
   dt_film_import1(job, params->film);
-  dt_pthread_mutex_safe_lock(&params->film->images_mutex);
+  dt_pthread_mutex_lock(&params->film->images_mutex);
   params->film->ref--;
-  dt_pthread_mutex_safe_unlock(&params->film->images_mutex);
+  dt_pthread_mutex_unlock(&params->film->images_mutex);
   if(params->film->ref <= 0)
   {
     if(dt_film_is_empty(params->film->id))
@@ -71,9 +71,9 @@ dt_job_t *dt_film_import1_create(dt_film_t *film)
   dt_control_job_add_progress(job, _("import images"), FALSE);
   dt_control_job_set_params(job, params, dt_film_import1_cleanup);
   params->film = film;
-  dt_pthread_mutex_safe_lock(&film->images_mutex);
+  dt_pthread_mutex_lock(&film->images_mutex);
   film->ref++;
-  dt_pthread_mutex_safe_unlock(&film->images_mutex);
+  dt_pthread_mutex_unlock(&film->images_mutex);
   return job;
 }
 
