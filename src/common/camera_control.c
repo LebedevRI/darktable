@@ -629,7 +629,7 @@ static void dt_camctl_camera_destroy(dt_camera_t *cam)
   }
   g_free(cam->model);
   g_free(cam->port);
-  dt_pthread_mutex_destroy(&cam->config_lock);
+  dt_pthread_mutex_safe_destroy(&cam->config_lock);
   dt_pthread_mutex_destroy(&cam->live_view_pixbuf_mutex);
   dt_pthread_mutex_destroy(&cam->live_view_synch);
   // TODO: cam->jobqueue
@@ -720,7 +720,7 @@ void dt_camctl_detect_cameras(const dt_camctl_t *c)
     camera->model = g_strdup(s);
     gp_list_get_value(available_cameras, i, &s);
     camera->port = g_strdup(s);
-    dt_pthread_mutex_init(&camera->config_lock, NULL);
+    dt_pthread_mutex_safe_init(&camera->config_lock, NULL);
     dt_pthread_mutex_init(&camera->live_view_pixbuf_mutex, NULL);
     dt_pthread_mutex_init(&camera->live_view_synch, NULL);
 
@@ -1219,11 +1219,11 @@ void dt_camctl_camera_build_property_menu(const dt_camctl_t *c, const dt_camera_
 
   /* lock camera config mutex while recursive building property menu */
   dt_camera_t *camera = (dt_camera_t *)cam;
-  dt_pthread_mutex_lock(&camera->config_lock);
+  dt_pthread_mutex_safe_lock(&camera->config_lock);
   *menu = GTK_MENU(gtk_menu_new());
   _camera_build_property_menu(camera->configuration, *menu, item_activate, user_data);
   gtk_widget_show_all(GTK_WIDGET(*menu));
-  dt_pthread_mutex_unlock(&camera->config_lock);
+  dt_pthread_mutex_safe_unlock(&camera->config_lock);
 }
 
 
@@ -1298,14 +1298,14 @@ const char *dt_camctl_camera_get_property(const dt_camctl_t *c, const dt_camera_
     return NULL;
   }
   dt_camera_t *camera = (dt_camera_t *)cam;
-  dt_pthread_mutex_lock(&camera->config_lock);
+  dt_pthread_mutex_safe_lock(&camera->config_lock);
   const char *value = NULL;
   CameraWidget *widget;
   if(gp_widget_get_child_by_name(camera->configuration, property_name, &widget) == GP_OK)
   {
     gp_widget_get_value(widget, &value);
   }
-  dt_pthread_mutex_unlock(&camera->config_lock);
+  dt_pthread_mutex_safe_unlock(&camera->config_lock);
   return value;
 }
 
@@ -1321,12 +1321,12 @@ int dt_camctl_camera_property_exists(const dt_camctl_t *c, const dt_camera_t *ca
   }
 
   dt_camera_t *camera = (dt_camera_t *)cam;
-  dt_pthread_mutex_lock(&camera->config_lock);
+  dt_pthread_mutex_safe_lock(&camera->config_lock);
 
   CameraWidget *widget;
   if(gp_widget_get_child_by_name(camera->configuration, property_name, &widget) == GP_OK) exists = 1;
 
-  dt_pthread_mutex_unlock(&camera->config_lock);
+  dt_pthread_mutex_safe_unlock(&camera->config_lock);
 
   return exists;
 }
@@ -1343,7 +1343,7 @@ const char *dt_camctl_camera_property_get_first_choice(const dt_camctl_t *c, con
     return NULL;
   }
   dt_camera_t *camera = (dt_camera_t *)cam;
-  dt_pthread_mutex_lock(&camera->config_lock);
+  dt_pthread_mutex_safe_lock(&camera->config_lock);
   if(gp_widget_get_child_by_name(camera->configuration, property_name, &camera->current_choice.widget)
      == GP_OK)
   {
@@ -1354,7 +1354,7 @@ const char *dt_camctl_camera_property_get_first_choice(const dt_camctl_t *c, con
     dt_print(DT_DEBUG_CAMCTL, "[camera_control] property name '%s' not found in camera configuration.\n",
              property_name);
 
-  dt_pthread_mutex_unlock(&camera->config_lock);
+  dt_pthread_mutex_safe_unlock(&camera->config_lock);
 
   return value;
 }
@@ -1371,7 +1371,7 @@ const char *dt_camctl_camera_property_get_next_choice(const dt_camctl_t *c, cons
     return NULL;
   }
   dt_camera_t *camera = (dt_camera_t *)cam;
-  dt_pthread_mutex_lock(&camera->config_lock);
+  dt_pthread_mutex_safe_lock(&camera->config_lock);
   if(camera->current_choice.widget != NULL)
   {
 
@@ -1388,7 +1388,7 @@ const char *dt_camctl_camera_property_get_next_choice(const dt_camctl_t *c, cons
     }
   }
 
-  dt_pthread_mutex_unlock(&camera->config_lock);
+  dt_pthread_mutex_safe_unlock(&camera->config_lock);
   return value;
 }
 
@@ -1542,24 +1542,24 @@ void _camera_configuration_commit(const dt_camctl_t *c, const dt_camera_t *camer
 
   dt_camera_t *cam = (dt_camera_t *)camera;
 
-  dt_pthread_mutex_lock(&cam->config_lock);
+  dt_pthread_mutex_safe_lock(&cam->config_lock);
   if(gp_camera_set_config(camera->gpcam, camera->configuration, c->gpcontext) != GP_OK)
     dt_print(DT_DEBUG_CAMCTL, "[camera_control] Failed to commit configuration changes to camera\n");
 
   cam->config_changed = FALSE;
-  dt_pthread_mutex_unlock(&cam->config_lock);
+  dt_pthread_mutex_safe_unlock(&cam->config_lock);
 }
 
 void _camera_configuration_update(const dt_camctl_t *c, const dt_camera_t *camera)
 {
   // dt_camctl_t *camctl=(dt_camctl_t *)c;
   dt_camera_t *cam = (dt_camera_t *)camera;
-  dt_pthread_mutex_lock(&cam->config_lock);
+  dt_pthread_mutex_safe_lock(&cam->config_lock);
   CameraWidget *remote; // Copy of remote configuration
   gp_camera_get_config(camera->gpcam, &remote, c->gpcontext);
   // merge remote copy with cache and notify on changed properties to host application
   _camera_configuration_merge(c, camera, remote, camera->configuration, FALSE);
-  dt_pthread_mutex_unlock(&cam->config_lock);
+  dt_pthread_mutex_safe_unlock(&cam->config_lock);
 }
 
 const char *_dispatch_request_image_filename(const dt_camctl_t *c, const char *filename,
