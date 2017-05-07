@@ -31,7 +31,7 @@ typedef struct _dt_progress_t
   double progress;
   gchar *message;
   gboolean has_progress_bar;
-  dt_pthread_mutex_t mutex;
+  dt_pthread_mutex_safe_t mutex;
   void *gui_data;
 
   // cancel callback and its data
@@ -50,7 +50,7 @@ dt_progress_t *dt_control_progress_create(dt_control_t *control, gboolean has_pr
 {
   // create the object
   _dt_progress_t *progress = (_dt_progress_t *)calloc(1, sizeof(_dt_progress_t));
-  dt_pthread_mutex_init(&(progress->mutex), NULL);
+  dt_pthread_mutex_safe_init(&(progress->mutex), NULL);
 
   // fill it with values
   progress->message = g_strdup(message);
@@ -105,7 +105,7 @@ void dt_control_progress_destroy(dt_control_t *control, dt_progress_t *progress)
 #endif
 
   // free the object
-  dt_pthread_mutex_destroy(&progress->mutex);
+  dt_pthread_mutex_safe_destroy(&progress->mutex);
   g_free(progress->message);
   free(progress);
 }
@@ -114,10 +114,10 @@ void dt_control_progress_make_cancellable(struct dt_control_t *control, dt_progr
                                           dt_progress_cancel_callback_t cancel, void *data)
 {
   // set the value
-  dt_pthread_mutex_lock(&progress->mutex);
+  dt_pthread_mutex_safe_lock(&progress->mutex);
   progress->cancel = cancel;
   progress->cancel_data = data;
-  dt_pthread_mutex_unlock(&progress->mutex);
+  dt_pthread_mutex_safe_unlock(&progress->mutex);
 
   // tell the gui
   dt_pthread_mutex_safe_lock(&control->progress_system.mutex);
@@ -139,17 +139,17 @@ void dt_control_progress_attach_job(dt_control_t *control, dt_progress_t *progre
 
 void dt_control_progress_cancel(dt_control_t *control, dt_progress_t *progress)
 {
-  dt_pthread_mutex_lock(&progress->mutex);
+  dt_pthread_mutex_safe_lock(&progress->mutex);
   if(progress->cancel == NULL)
   {
-    dt_pthread_mutex_unlock(&progress->mutex);
+    dt_pthread_mutex_safe_unlock(&progress->mutex);
     return;
   }
 
   // call the cancel callback
   progress->cancel(progress, progress->cancel_data);
 
-  dt_pthread_mutex_unlock(&progress->mutex);
+  dt_pthread_mutex_safe_unlock(&progress->mutex);
 
   // the gui doesn't need to know I guess, it wouldn't to anything with that bit of information
 }
@@ -157,9 +157,9 @@ void dt_control_progress_cancel(dt_control_t *control, dt_progress_t *progress)
 void dt_control_progress_set_progress(dt_control_t *control, dt_progress_t *progress, double value)
 {
   // set the value
-  dt_pthread_mutex_lock(&progress->mutex);
+  dt_pthread_mutex_safe_lock(&progress->mutex);
   progress->progress = value;
-  dt_pthread_mutex_unlock(&progress->mutex);
+  dt_pthread_mutex_safe_unlock(&progress->mutex);
 
   // tell the gui
   dt_pthread_mutex_safe_lock(&control->progress_system.mutex);
@@ -175,26 +175,26 @@ void dt_control_progress_set_progress(dt_control_t *control, dt_progress_t *prog
 
 double dt_control_progress_get_progress(dt_progress_t *progress)
 {
-  dt_pthread_mutex_lock(&progress->mutex);
+  dt_pthread_mutex_safe_lock(&progress->mutex);
   double res = progress->progress;
-  dt_pthread_mutex_unlock(&progress->mutex);
+  dt_pthread_mutex_safe_unlock(&progress->mutex);
   return res;
 }
 
 const gchar *dt_control_progress_get_message(dt_progress_t *progress)
 {
-  dt_pthread_mutex_lock(&progress->mutex);
+  dt_pthread_mutex_safe_lock(&progress->mutex);
   const gchar *res = progress->message;
-  dt_pthread_mutex_unlock(&progress->mutex);
+  dt_pthread_mutex_safe_unlock(&progress->mutex);
   return res;
 }
 
 void dt_control_progress_set_message(dt_control_t *control, dt_progress_t *progress, const char *message)
 {
-  dt_pthread_mutex_lock(&progress->mutex);
+  dt_pthread_mutex_safe_lock(&progress->mutex);
   g_free(progress->message);
   progress->message = g_strdup(message);
-  dt_pthread_mutex_unlock(&progress->mutex);
+  dt_pthread_mutex_safe_unlock(&progress->mutex);
 
   // tell the gui
   dt_pthread_mutex_safe_lock(&control->progress_system.mutex);
@@ -206,32 +206,32 @@ void dt_control_progress_set_message(dt_control_t *control, dt_progress_t *progr
 
 void dt_control_progress_set_gui_data(dt_progress_t *progress, void *data)
 {
-  dt_pthread_mutex_lock(&progress->mutex);
+  dt_pthread_mutex_safe_lock(&progress->mutex);
   progress->gui_data = data;
-  dt_pthread_mutex_unlock(&progress->mutex);
+  dt_pthread_mutex_safe_unlock(&progress->mutex);
 }
 
 void *dt_control_progress_get_gui_data(dt_progress_t *progress)
 {
-  dt_pthread_mutex_lock(&progress->mutex);
+  dt_pthread_mutex_safe_lock(&progress->mutex);
   void *res = progress->gui_data;
-  dt_pthread_mutex_unlock(&progress->mutex);
+  dt_pthread_mutex_safe_unlock(&progress->mutex);
   return res;
 }
 
 gboolean dt_control_progress_has_progress_bar(dt_progress_t *progress)
 {
-  dt_pthread_mutex_lock(&progress->mutex);
+  dt_pthread_mutex_safe_lock(&progress->mutex);
   gboolean res = progress->has_progress_bar;
-  dt_pthread_mutex_unlock(&progress->mutex);
+  dt_pthread_mutex_safe_unlock(&progress->mutex);
   return res;
 }
 
 gboolean dt_control_progress_cancellable(dt_progress_t *progress)
 {
-  dt_pthread_mutex_lock(&progress->mutex);
+  dt_pthread_mutex_safe_lock(&progress->mutex);
   gboolean res = progress->cancel != NULL;
-  dt_pthread_mutex_unlock(&progress->mutex);
+  dt_pthread_mutex_safe_unlock(&progress->mutex);
   return res;
 }
 
