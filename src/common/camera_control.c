@@ -251,22 +251,22 @@ static void _camera_stop_timeout_func(Camera *c, int id, void *data)
 void _camera_add_job(const dt_camctl_t *c, const dt_camera_t *camera, gpointer job)
 {
   dt_camera_t *cam = (dt_camera_t *)camera;
-  dt_pthread_mutex_lock(&cam->jobqueue_lock);
+  dt_pthread_mutex_safe_lock(&cam->jobqueue_lock);
   cam->jobqueue = g_list_append(cam->jobqueue, job);
-  dt_pthread_mutex_unlock(&cam->jobqueue_lock);
+  dt_pthread_mutex_safe_unlock(&cam->jobqueue_lock);
 }
 
 gpointer _camera_get_job(const dt_camctl_t *c, const dt_camera_t *camera)
 {
   dt_camera_t *cam = (dt_camera_t *)camera;
-  dt_pthread_mutex_lock(&cam->jobqueue_lock);
+  dt_pthread_mutex_safe_lock(&cam->jobqueue_lock);
   gpointer job = NULL;
   if(g_list_length(cam->jobqueue) > 0)
   {
     job = g_list_nth_data(cam->jobqueue, 0);
     cam->jobqueue = g_list_remove(cam->jobqueue, job);
   }
-  dt_pthread_mutex_unlock(&cam->jobqueue_lock);
+  dt_pthread_mutex_safe_unlock(&cam->jobqueue_lock);
   return job;
 }
 
@@ -874,7 +874,7 @@ gboolean _camera_initialize(const dt_camctl_t *c, dt_camera_t *cam)
                                 (CameraTimeoutStopFunc)_camera_stop_timeout_func, cam);
 
 
-    dt_pthread_mutex_init(&cam->jobqueue_lock, NULL);
+    dt_pthread_mutex_safe_init(&cam->jobqueue_lock, NULL);
 
     dt_print(DT_DEBUG_CAMCTL, "[camera_control] device %s on port %s initialized\n", cam->model, cam->port);
   }

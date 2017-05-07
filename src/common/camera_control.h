@@ -64,7 +64,7 @@ typedef struct dt_camera_t
   gboolean is_tethering;
 
   /** A mutex lock for jobqueue */
-  dt_pthread_mutex_t jobqueue_lock;
+  dt_pthread_mutex_safe_t jobqueue_lock;
   /** The jobqueue */
   GList *jobqueue;
 
