@@ -56,7 +56,7 @@ dt_progress_t *dt_control_progress_create(dt_control_t *control, gboolean has_pr
   progress->message = g_strdup(message);
   progress->has_progress_bar = has_progress_bar;
 
-  dt_pthread_mutex_lock(&control->progress_system.mutex);
+  dt_pthread_mutex_safe_lock(&control->progress_system.mutex);
 
   // add it to the global list
   control->progress_system.list = g_list_append(control->progress_system.list, progress);
@@ -67,7 +67,7 @@ dt_progress_t *dt_control_progress_create(dt_control_t *control, gboolean has_pr
     progress->gui_data = control->progress_system.proxy.added(control->progress_system.proxy.module,
                                                               has_progress_bar, message);
 
-  dt_pthread_mutex_unlock(&control->progress_system.mutex);
+  dt_pthread_mutex_safe_unlock(&control->progress_system.mutex);
 
 #ifdef HAVE_UNITY
   if(has_progress_bar)
@@ -84,7 +84,7 @@ dt_progress_t *dt_control_progress_create(dt_control_t *control, gboolean has_pr
 
 void dt_control_progress_destroy(dt_control_t *control, dt_progress_t *progress)
 {
-  dt_pthread_mutex_lock(&control->progress_system.mutex);
+  dt_pthread_mutex_safe_lock(&control->progress_system.mutex);
 
   // tell the gui
   if(control->progress_system.proxy.module != NULL)
@@ -94,7 +94,7 @@ void dt_control_progress_destroy(dt_control_t *control, dt_progress_t *progress)
   control->progress_system.list = g_list_remove(control->progress_system.list, progress);
   control->progress_system.list_length--;
 
-  dt_pthread_mutex_unlock(&control->progress_system.mutex);
+  dt_pthread_mutex_safe_unlock(&control->progress_system.mutex);
 
 #ifdef HAVE_UNITY
   if(progress->has_progress_bar)
@@ -120,11 +120,11 @@ void dt_control_progress_make_cancellable(struct dt_control_t *control, dt_progr
   dt_pthread_mutex_unlock(&progress->mutex);
 
   // tell the gui
-  dt_pthread_mutex_lock(&control->progress_system.mutex);
+  dt_pthread_mutex_safe_lock(&control->progress_system.mutex);
   if(control->progress_system.proxy.module != NULL)
     control->progress_system.proxy.cancellable(control->progress_system.proxy.module, progress->gui_data,
                                                progress);
-  dt_pthread_mutex_unlock(&control->progress_system.mutex);
+  dt_pthread_mutex_safe_unlock(&control->progress_system.mutex);
 }
 
 static void dt_control_progress_cancel_callback(dt_progress_t *progress, void *data)
@@ -162,10 +162,10 @@ void dt_control_progress_set_progress(dt_control_t *control, dt_progress_t *prog
   dt_pthread_mutex_unlock(&progress->mutex);
 
   // tell the gui
-  dt_pthread_mutex_lock(&control->progress_system.mutex);
+  dt_pthread_mutex_safe_lock(&control->progress_system.mutex);
   if(control->progress_system.proxy.module != NULL)
     control->progress_system.proxy.updated(control->progress_system.proxy.module, progress->gui_data, value);
-  dt_pthread_mutex_unlock(&control->progress_system.mutex);
+  dt_pthread_mutex_safe_unlock(&control->progress_system.mutex);
 
 #ifdef HAVE_UNITY
   if(progress->has_progress_bar)
@@ -197,11 +197,11 @@ void dt_control_progress_set_message(dt_control_t *control, dt_progress_t *progr
   dt_pthread_mutex_unlock(&progress->mutex);
 
   // tell the gui
-  dt_pthread_mutex_lock(&control->progress_system.mutex);
+  dt_pthread_mutex_safe_lock(&control->progress_system.mutex);
   if(control->progress_system.proxy.module != NULL)
     control->progress_system.proxy.message_updated(control->progress_system.proxy.module, progress->gui_data,
                                                    message);
-  dt_pthread_mutex_unlock(&control->progress_system.mutex);
+  dt_pthread_mutex_safe_unlock(&control->progress_system.mutex);
 }
 
 void dt_control_progress_set_gui_data(dt_progress_t *progress, void *data)

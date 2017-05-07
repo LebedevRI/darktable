@@ -82,7 +82,7 @@ void gui_init(dt_lib_module_t *self)
   gtk_container_set_border_width(GTK_CONTAINER(self->widget), 5);
 
   /* setup proxy */
-  dt_pthread_mutex_lock(&darktable.control->progress_system.mutex);
+  dt_pthread_mutex_safe_lock(&darktable.control->progress_system.mutex);
 
   darktable.control->progress_system.proxy.module = self;
   darktable.control->progress_system.proxy.added = _lib_backgroundjobs_added;
@@ -107,19 +107,19 @@ void gui_init(dt_lib_module_t *self)
     iter = g_list_next(iter);
   }
 
-  dt_pthread_mutex_unlock(&darktable.control->progress_system.mutex);
+  dt_pthread_mutex_safe_unlock(&darktable.control->progress_system.mutex);
 }
 
 void gui_cleanup(dt_lib_module_t *self)
 {
   /* lets kill proxy */
-  dt_pthread_mutex_lock(&darktable.control->progress_system.mutex);
+  dt_pthread_mutex_safe_lock(&darktable.control->progress_system.mutex);
   darktable.control->progress_system.proxy.module = NULL;
   darktable.control->progress_system.proxy.added = NULL;
   darktable.control->progress_system.proxy.destroyed = NULL;
   darktable.control->progress_system.proxy.cancellable = NULL;
   darktable.control->progress_system.proxy.updated = NULL;
-  dt_pthread_mutex_unlock(&darktable.control->progress_system.mutex);
+  dt_pthread_mutex_safe_unlock(&darktable.control->progress_system.mutex);
 }
 
 /** the proxy functions */

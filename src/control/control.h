@@ -179,7 +179,7 @@ typedef struct dt_control_t
   {
     GList *list;
     size_t list_length;
-    dt_pthread_mutex_t mutex;
+    dt_pthread_mutex_safe_t mutex;
 
     // these proxy functions should ONLY be used by control/process.c!
     struct
