@@ -70,7 +70,7 @@ typedef struct dt_slideshow_t
   int old_profile_type;
 
   // state machine stuff for image transitions:
-  dt_pthread_mutex_t lock;
+  dt_pthread_mutex_safe_t lock;
   dt_slideshow_state_t state;      // global state cycle
   uint32_t state_waiting_for_user; // user input (needed to step the cycle at one point)
 
@@ -112,14 +112,14 @@ static int write_image(dt_imageio_module_data_t *datai, const char *filename, co
                        int exif_len, int imgid, int num, int total)
 {
   dt_slideshow_format_t *data = (dt_slideshow_format_t *)datai;
-  dt_pthread_mutex_lock(&data->d->lock);
+  dt_pthread_mutex_safe_lock(&data->d->lock);
   if(data->d->back)
   { // might have been cleaned up when leaving slide show
     memcpy(data->d->back, in, sizeof(uint32_t) * datai->width * datai->height);
     data->d->back_width = datai->width;
     data->d->back_height = datai->height;
   }
-  dt_pthread_mutex_unlock(&data->d->lock);
+  dt_pthread_mutex_safe_unlock(&data->d->lock);
   _step_state(data->d, s_image_loaded);
   // trigger expose
   dt_control_queue_redraw_center();
@@ -156,10 +156,10 @@ static int process_next_image(dt_slideshow_t *d)
   int32_t id = 0;
   const int32_t cnt = dt_collection_get_count(darktable.collection);
   if(!cnt) return 1;
-  dt_pthread_mutex_lock(&d->lock);
+  dt_pthread_mutex_safe_lock(&d->lock);
   d->back_num = d->front_num + d->step;
   int32_t ran = d->back_num;
-  dt_pthread_mutex_unlock(&d->lock);
+  dt_pthread_mutex_safe_unlock(&d->lock);
   // enumerated all images? i.e. prefetching the one two after the limit, when viewing the one past the end.
   if(ran == -2 || ran == cnt + 1)
   {
@@ -220,7 +220,7 @@ static gboolean auto_advance(gpointer user_data)
 // state machine stepping
 static void _step_state(dt_slideshow_t *d, dt_slideshow_event_t event)
 {
-  dt_pthread_mutex_lock(&d->lock);
+  dt_pthread_mutex_safe_lock(&d->lock);
 
   if(event == s_request_step || event == s_request_step_back)
   {
@@ -291,7 +291,7 @@ static void _step_state(dt_slideshow_t *d, dt_slideshow_event_t event)
       d->state = s_prefetching;
       break;
   }
-  dt_pthread_mutex_unlock(&d->lock);
+  dt_pthread_mutex_safe_unlock(&d->lock);
 }
 
 // callbacks for a view module:
@@ -310,14 +310,14 @@ void init(dt_view_t *self)
 {
   self->data = calloc(1, sizeof(dt_slideshow_t));
   dt_slideshow_t *lib = (dt_slideshow_t *)self->data;
-  dt_pthread_mutex_init(&lib->lock, 0);
+  dt_pthread_mutex_safe_init(&lib->lock, 0);
 }
 
 
 void cleanup(dt_view_t *self)
 {
   dt_slideshow_t *lib = (dt_slideshow_t *)self->data;
-  dt_pthread_mutex_destroy(&lib->lock);
+  dt_pthread_mutex_safe_destroy(&lib->lock);
   free(self->data);
 }
 
@@ -370,7 +370,7 @@ void enter(dt_view_t *self)
   gdk_screen_get_monitor_geometry(screen, monitor, &rect);
 #endif
 
-  dt_pthread_mutex_lock(&d->lock);
+  dt_pthread_mutex_safe_lock(&d->lock);
 
   d->width = rect.width * darktable.gui->ppd;
   d->height = rect.height * darktable.gui->ppd;
@@ -389,7 +389,7 @@ void enter(dt_view_t *self)
   // restart from beginning, will first increment counter by step and then prefetch
   d->front_num = d->back_num = dt_view_lighttable_get_position(darktable.view_manager) - 1;
   d->step = 1;
-  dt_pthread_mutex_unlock(&d->lock);
+  dt_pthread_mutex_safe_unlock(&d->lock);
 
   // start first job
   _step_state(d, s_request_step);
@@ -406,11 +406,11 @@ void leave(dt_view_t *self)
   d->auto_advance = 0;
   dt_view_lighttable_set_position(darktable.view_manager, d->front_num);
   dt_conf_set_int("plugins/lighttable/export/icctype", d->old_profile_type);
-  dt_pthread_mutex_lock(&d->lock);
+  dt_pthread_mutex_safe_lock(&d->lock);
   dt_free_align(d->buf1);
   dt_free_align(d->buf2);
   d->buf1 = d->buf2 = d->front = d->back = 0;
-  dt_pthread_mutex_unlock(&d->lock);
+  dt_pthread_mutex_safe_unlock(&d->lock);
 }
 
 void reset(dt_view_t *self)
@@ -423,7 +423,7 @@ void expose(dt_view_t *self, cairo_t *cr, int32_t width, int32_t height, int32_t
   // draw front buffer.
   dt_slideshow_t *d = (dt_slideshow_t *)self->data;
 
-  dt_pthread_mutex_lock(&d->lock);
+  dt_pthread_mutex_safe_lock(&d->lock);
   cairo_paint(cr);
   if(d->front)
   {
@@ -446,7 +446,7 @@ void expose(dt_view_t *self, cairo_t *cr, int32_t width, int32_t height, int32_t
     cairo_save(cr); // pretend we didn't already pop the stack
     cairo_save(cr);
   }
-  dt_pthread_mutex_unlock(&d->lock);
+  dt_pthread_mutex_safe_unlock(&d->lock);
 }
 
 static gboolean _hide_mouse(gpointer user_data)
