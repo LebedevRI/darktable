@@ -865,7 +865,7 @@ static void auto_apply_presets(dt_develop_t *dev)
   if(imgid <= 0) return;
 
   // be extra sure that we don't mess up history in separate threads:
-  dt_pthread_mutex_lock(&darktable.db_insert);
+  dt_pthread_mutex_safe_lock(&darktable.db_insert);
 
   int run = 0;
   dt_image_t *image = dt_image_cache_get(darktable.image_cache, imgid, 'w');
@@ -876,7 +876,7 @@ static void auto_apply_presets(dt_develop_t *dev)
   if(!run || image->id <= 0)
   {
     dt_image_cache_write_release(darktable.image_cache, image, DT_IMAGE_CACHE_RELAXED);
-    dt_pthread_mutex_unlock(&darktable.db_insert);
+    dt_pthread_mutex_safe_unlock(&darktable.db_insert);
     return;
   }
 
@@ -1005,7 +1005,7 @@ static void auto_apply_presets(dt_develop_t *dev)
   if(dev->image_loading) dt_lightroom_import(dev->image_storage.id, dev, TRUE);
 
   image->flags |= DT_IMAGE_AUTO_PRESETS_APPLIED | DT_IMAGE_NO_LEGACY_PRESETS;
-  dt_pthread_mutex_unlock(&darktable.db_insert);
+  dt_pthread_mutex_safe_unlock(&darktable.db_insert);
 
   // make sure these end up in the image_cache + xmp (sync through here if we set the flag)
   dt_image_cache_write_release(darktable.image_cache, image, DT_IMAGE_CACHE_SAFE);
