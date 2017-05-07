@@ -56,7 +56,7 @@ void dt_control_init(dt_control_t *s)
   s->log_pos = s->log_ack = 0;
   s->log_busy = 0;
   s->log_message_timeout_id = 0;
-  dt_pthread_mutex_init(&(s->log_mutex), NULL);
+  dt_pthread_mutex_safe_init(&(s->log_mutex), NULL);
 
   pthread_cond_init(&s->cond, NULL);
   dt_pthread_mutex_init(&s->cond_mutex, NULL);
@@ -159,7 +159,7 @@ void dt_control_cleanup(dt_control_t *s)
   dt_control_jobs_cleanup(s);
   dt_pthread_mutex_destroy(&s->queue_mutex);
   dt_pthread_mutex_destroy(&s->cond_mutex);
-  dt_pthread_mutex_destroy(&s->log_mutex);
+  dt_pthread_mutex_safe_destroy(&s->log_mutex);
   dt_pthread_mutex_destroy(&s->res_mutex);
   dt_pthread_mutex_destroy(&s->run_mutex);
   dt_pthread_mutex_destroy(&s->progress_system.mutex);
@@ -250,7 +250,7 @@ void *dt_control_expose(void *voidptr)
   cairo_restore(cr);
 
   // draw log message, if any
-  dt_pthread_mutex_lock(&darktable.control->log_mutex);
+  dt_pthread_mutex_safe_lock(&darktable.control->log_mutex);
   if(darktable.control->log_ack != darktable.control->log_pos)
   {
     PangoRectangle ink;
@@ -329,7 +329,7 @@ void *dt_control_expose(void *voidptr)
     pango_font_description_free(desc);
     g_object_unref(layout);
   }
-  dt_pthread_mutex_unlock(&darktable.control->log_mutex);
+  dt_pthread_mutex_safe_unlock(&darktable.control->log_mutex);
 
   cairo_destroy(cr);
 
@@ -439,11 +439,11 @@ void dt_ctl_switch_mode()
 
 static gboolean _dt_ctl_log_message_timeout_callback(gpointer data)
 {
-  dt_pthread_mutex_lock(&darktable.control->log_mutex);
+  dt_pthread_mutex_safe_lock(&darktable.control->log_mutex);
   if(darktable.control->log_ack != darktable.control->log_pos)
     darktable.control->log_ack = (darktable.control->log_ack + 1) % DT_CTL_LOG_SIZE;
   darktable.control->log_message_timeout_id = 0;
-  dt_pthread_mutex_unlock(&darktable.control->log_mutex);
+  dt_pthread_mutex_safe_unlock(&darktable.control->log_mutex);
   dt_control_queue_redraw_center();
   return FALSE;
 }
@@ -463,7 +463,7 @@ void dt_control_button_pressed(double x, double y, double pressure, int which, i
   float ht = darktable.control->height;
 
   // ack log message:
-  dt_pthread_mutex_lock(&darktable.control->log_mutex);
+  dt_pthread_mutex_safe_lock(&darktable.control->log_mutex);
   const float /*xc = wd/4.0-20,*/ yc = ht * 0.85 + 10;
   if(darktable.control->log_ack != darktable.control->log_pos)
     if(which == 1 /*&& x > xc - 10 && x < xc + 10*/ && y > yc - 10 && y < yc + 10)
@@ -474,10 +474,10 @@ void dt_control_button_pressed(double x, double y, double pressure, int which, i
         darktable.control->log_message_timeout_id = 0;
       }
       darktable.control->log_ack = (darktable.control->log_ack + 1) % DT_CTL_LOG_SIZE;
-      dt_pthread_mutex_unlock(&darktable.control->log_mutex);
+      dt_pthread_mutex_safe_unlock(&darktable.control->log_mutex);
       return;
     }
-  dt_pthread_mutex_unlock(&darktable.control->log_mutex);
+  dt_pthread_mutex_safe_unlock(&darktable.control->log_mutex);
 
   if(x > tb && x < wd - tb && y > tb && y < ht - tb)
   {
@@ -494,7 +494,7 @@ static gboolean _redraw_center(gpointer user_data)
 
 void dt_control_log(const char *msg, ...)
 {
-  dt_pthread_mutex_lock(&darktable.control->log_mutex);
+  dt_pthread_mutex_safe_lock(&darktable.control->log_mutex);
   va_list ap;
   va_start(ap, msg);
   vsnprintf(darktable.control->log_message[darktable.control->log_pos], DT_CTL_LOG_MSG_SIZE, msg, ap);
@@ -504,31 +504,31 @@ void dt_control_log(const char *msg, ...)
   darktable.control->log_pos = (darktable.control->log_pos + 1) % DT_CTL_LOG_SIZE;
   darktable.control->log_message_timeout_id
       = g_timeout_add(DT_CTL_LOG_TIMEOUT, _dt_ctl_log_message_timeout_callback, NULL);
-  dt_pthread_mutex_unlock(&darktable.control->log_mutex);
+  dt_pthread_mutex_safe_unlock(&darktable.control->log_mutex);
   // redraw center later in gui thread:
   g_idle_add(_redraw_center, 0);
 }
 
 static void dt_control_log_ack_all()
 {
-  dt_pthread_mutex_lock(&darktable.control->log_mutex);
+  dt_pthread_mutex_safe_lock(&darktable.control->log_mutex);
   darktable.control->log_pos = darktable.control->log_ack;
-  dt_pthread_mutex_unlock(&darktable.control->log_mutex);
+  dt_pthread_mutex_safe_unlock(&darktable.control->log_mutex);
   dt_control_queue_redraw_center();
 }
 
 void dt_control_log_busy_enter()
 {
-  dt_pthread_mutex_lock(&darktable.control->log_mutex);
+  dt_pthread_mutex_safe_lock(&darktable.control->log_mutex);
   darktable.control->log_busy++;
-  dt_pthread_mutex_unlock(&darktable.control->log_mutex);
+  dt_pthread_mutex_safe_unlock(&darktable.control->log_mutex);
 }
 
 void dt_control_log_busy_leave()
 {
-  dt_pthread_mutex_lock(&darktable.control->log_mutex);
+  dt_pthread_mutex_safe_lock(&darktable.control->log_mutex);
   darktable.control->log_busy--;
-  dt_pthread_mutex_unlock(&darktable.control->log_mutex);
+  dt_pthread_mutex_safe_unlock(&darktable.control->log_mutex);
   /* lets redraw */
   dt_control_queue_redraw_center();
 }

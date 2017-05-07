@@ -151,7 +151,7 @@ typedef struct dt_control_t
   char log_message[DT_CTL_LOG_SIZE][DT_CTL_LOG_MSG_SIZE];
   guint log_message_timeout_id;
   int log_busy;
-  dt_pthread_mutex_t log_mutex;
+  dt_pthread_mutex_safe_t log_mutex;
 
   // gui settings
   dt_pthread_mutex_t global_mutex, image_mutex;
