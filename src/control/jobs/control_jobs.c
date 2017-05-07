@@ -678,7 +678,7 @@ typedef struct _dt_delete_modal_dialog_t
 
   gint dialog_result;
 
-  dt_pthread_mutex_t mutex;
+  dt_pthread_mutex_safe_t mutex;
   pthread_cond_t cond;
 } _dt_delete_modal_dialog_t;
 
@@ -701,7 +701,7 @@ enum _dt_delete_dialog_choice
 static gboolean _dt_delete_dialog_main_thread(gpointer user_data)
 {
   _dt_delete_modal_dialog_t* modal_dialog = (_dt_delete_modal_dialog_t*)user_data;
-  dt_pthread_mutex_lock(&modal_dialog->mutex);
+  dt_pthread_mutex_safe_lock(&modal_dialog->mutex);
 
   GtkWidget *dialog = gtk_message_dialog_new(
       GTK_WINDOW(dt_ui_main_window(darktable.gui->ui)),
@@ -731,7 +731,7 @@ static gboolean _dt_delete_dialog_main_thread(gpointer user_data)
 
   pthread_cond_signal(&modal_dialog->cond);
 
-  dt_pthread_mutex_unlock(&modal_dialog->mutex);
+  dt_pthread_mutex_safe_unlock(&modal_dialog->mutex);
 
   // Don't call again on next idle time
   return FALSE;
@@ -746,17 +746,17 @@ static gint _dt_delete_file_display_modal_dialog(int send_to_trash, const char *
 
   modal_dialog.dialog_result = GTK_RESPONSE_NONE;
 
-  dt_pthread_mutex_init(&modal_dialog.mutex, NULL);
+  dt_pthread_mutex_safe_init(&modal_dialog.mutex, NULL);
   pthread_cond_init(&modal_dialog.cond, NULL);
 
-  dt_pthread_mutex_lock(&modal_dialog.mutex);
+  dt_pthread_mutex_safe_lock(&modal_dialog.mutex);
 
   gdk_threads_add_idle(_dt_delete_dialog_main_thread, &modal_dialog);
   while (modal_dialog.dialog_result == GTK_RESPONSE_NONE)
-    dt_pthread_cond_wait(&modal_dialog.cond, &modal_dialog.mutex);
+    dt_pthread_cond_wait_safe(&modal_dialog.cond, &modal_dialog.mutex);
 
-  dt_pthread_mutex_unlock(&modal_dialog.mutex);
-  dt_pthread_mutex_destroy(&modal_dialog.mutex);
+  dt_pthread_mutex_safe_unlock(&modal_dialog.mutex);
+  dt_pthread_mutex_safe_destroy(&modal_dialog.mutex);
   pthread_cond_destroy(&modal_dialog.cond);
 
   return modal_dialog.dialog_result;
