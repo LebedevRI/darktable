@@ -95,7 +95,7 @@ typedef struct dt_iop_levels_gui_data_t
   GtkWidget *percentile_white;
   float auto_levels[3];
   uint64_t hash;
-  dt_pthread_mutex_t lock;
+  dt_pthread_mutex_safe_t lock;
 } dt_iop_levels_gui_data_t;
 
 typedef struct dt_iop_levels_data_t
@@ -243,22 +243,23 @@ static void commit_params_late(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *pi
   {
     if(g && piece->pipe->type == DT_DEV_PIXELPIPE_FULL)
     {
-      dt_pthread_mutex_lock(&g->lock);
+      dt_pthread_mutex_safe_lock(&g->lock);
       const uint64_t hash = g->hash;
-      dt_pthread_mutex_unlock(&g->lock);
+      dt_pthread_mutex_safe_unlock(&g->lock);
 
       // note that the case 'hash == 0' on first invocation in a session implies that d->levels[]
       // contains NANs which initiates special handling below to avoid inconsistent results. in all
       // other cases we make sure that the preview pipe has left us with proper readings for
       // g->auto_levels[]. if data are not yet there we need to wait (with timeout).
-      if(hash != 0 && !dt_dev_sync_pixelpipe_hash(self->dev, piece->pipe, 0, self->priority, &g->lock, &g->hash))
+      if(hash != 0
+         && !dt_dev_sync_pixelpipe_hash(self->dev, piece->pipe, 0, self->priority, &g->lock.Mutex, &g->hash))
         dt_control_log(_("inconsistent output"));
 
-      dt_pthread_mutex_lock(&g->lock);
+      dt_pthread_mutex_safe_lock(&g->lock);
       d->levels[0] = g->auto_levels[0];
       d->levels[1] = g->auto_levels[1];
       d->levels[2] = g->auto_levels[2];
-      dt_pthread_mutex_unlock(&g->lock);
+      dt_pthread_mutex_safe_unlock(&g->lock);
 
       compute_lut(piece);
     }
@@ -273,12 +274,12 @@ static void commit_params_late(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *pi
     if(g && piece->pipe->type == DT_DEV_PIXELPIPE_PREVIEW && d->mode == LEVELS_MODE_AUTOMATIC)
     {
       uint64_t hash = dt_dev_hash_plus(self->dev, piece->pipe, 0, self->priority);
-      dt_pthread_mutex_lock(&g->lock);
+      dt_pthread_mutex_safe_lock(&g->lock);
       g->auto_levels[0] = d->levels[0];
       g->auto_levels[1] = d->levels[1];
       g->auto_levels[2] = d->levels[2];
       g->hash = hash;
-      dt_pthread_mutex_unlock(&g->lock);
+      dt_pthread_mutex_safe_unlock(&g->lock);
     }
   }
 }
@@ -484,12 +485,12 @@ void gui_update(dt_iop_module_t *self)
       break;
   }
 
-  dt_pthread_mutex_lock(&g->lock);
+  dt_pthread_mutex_safe_lock(&g->lock);
   g->auto_levels[0] = NAN;
   g->auto_levels[1] = NAN;
   g->auto_levels[2] = NAN;
   g->hash = 0;
-  dt_pthread_mutex_unlock(&g->lock);
+  dt_pthread_mutex_safe_unlock(&g->lock);
 
   gtk_widget_queue_draw(self->widget);
 }
@@ -542,14 +543,14 @@ void gui_init(dt_iop_module_t *self)
   dt_iop_levels_gui_data_t *c = (dt_iop_levels_gui_data_t *)self->gui_data;
   dt_iop_levels_params_t *p = (dt_iop_levels_params_t *)self->params;
 
-  dt_pthread_mutex_init(&c->lock, NULL);
+  dt_pthread_mutex_safe_init(&c->lock, NULL);
 
-  dt_pthread_mutex_lock(&c->lock);
+  dt_pthread_mutex_safe_lock(&c->lock);
   c->auto_levels[0] = NAN;
   c->auto_levels[1] = NAN;
   c->auto_levels[2] = NAN;
   c->hash = 0;
-  dt_pthread_mutex_unlock(&c->lock);
+  dt_pthread_mutex_safe_unlock(&c->lock);
 
   c->modes = NULL;
 
@@ -683,7 +684,7 @@ void gui_cleanup(dt_iop_module_t *self)
   dt_iop_levels_gui_data_t *g = (dt_iop_levels_gui_data_t *)self->gui_data;
   g_list_free(g->modes);
 
-  dt_pthread_mutex_destroy(&g->lock);
+  dt_pthread_mutex_safe_destroy(&g->lock);
 
   free(self->gui_data);
   self->gui_data = NULL;
