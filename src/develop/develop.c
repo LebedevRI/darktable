@@ -77,7 +77,7 @@ void dt_dev_init(dt_develop_t *dev, int32_t gui_attached)
   dev->pipe = dev->preview_pipe = NULL;
   dt_pthread_mutex_init(&dev->pipe_mutex, NULL);
   dt_pthread_mutex_init(&dev->preview_pipe_mutex, NULL);
-  //   dt_pthread_mutex_init(&dev->histogram_waveform_mutex, NULL);
+  //   dt_pthread_mutex_safe_init(&dev->histogram_waveform_mutex, NULL);
   dev->histogram = NULL;
   dev->histogram_pre_tonecurve = NULL;
   dev->histogram_pre_levels = NULL;
@@ -133,7 +133,7 @@ void dt_dev_cleanup(dt_develop_t *dev)
   // image_cache does not have to be unref'd, this is done outside develop module.
   dt_pthread_mutex_destroy(&dev->pipe_mutex);
   dt_pthread_mutex_destroy(&dev->preview_pipe_mutex);
-  //   dt_pthread_mutex_destroy(&dev->histogram_waveform_mutex);
+  //   dt_pthread_mutex_safe_destroy(&dev->histogram_waveform_mutex);
   if(dev->pipe)
   {
     dt_dev_pixelpipe_cleanup(dev->pipe);

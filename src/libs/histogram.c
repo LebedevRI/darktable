@@ -94,7 +94,7 @@ static void _lib_histogram_change_callback(gpointer instance, gpointer user_data
 // static gboolean _lib_histogram_configure_callback(GtkWidget *widget, GdkEvent *event, gpointer user_data)
 // {
 //   dt_develop_t *dev = darktable.develop;
-//   dt_pthread_mutex_lock(&dev->histogram_waveform_mutex);
+//   dt_pthread_mutex_safe_lock(&dev->histogram_waveform_mutex);
 //
 //   int width = allocation.width;
 //   int height = allocation.height;
@@ -109,7 +109,7 @@ static void _lib_histogram_change_callback(gpointer instance, gpointer user_data
 //   dev->histogram_waveform_height = height;
 //   dev->histogram_waveform_stride = stride;
 //
-//   dt_pthread_mutex_unlock(&dev->histogram_waveform_mutex);
+//   dt_pthread_mutex_safe_unlock(&dev->histogram_waveform_mutex);
 //   return FALSE;
 // }
 

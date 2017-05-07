@@ -137,7 +137,7 @@ typedef struct dt_develop_t
       histogram_waveform_stride;
   // we should process the waveform histogram in the correct size to make it not look like crap. since this
   // requires gui knowledge we need this mutex
-  //   dt_pthread_mutex_t histogram_waveform_mutex;
+  //   dt_pthread_mutex_safe_t histogram_waveform_mutex;
   dt_dev_histogram_type_t histogram_type;
 
   // list of forms iop can use for masks or whatever
