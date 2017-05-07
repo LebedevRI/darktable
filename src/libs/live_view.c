@@ -491,10 +491,10 @@ void gui_post_expose(dt_lib_module_t *self, cairo_t *cr, int32_t width, int32_t 
 
   if(cam->is_live_viewing == FALSE || cam->live_view_zoom == TRUE) return;
 
-  dt_pthread_mutex_lock(&cam->live_view_pixbuf_mutex);
+  dt_pthread_mutex_safe_lock(&cam->live_view_pixbuf_mutex);
   if(GDK_IS_PIXBUF(cam->live_view_pixbuf) == FALSE)
   {
-    dt_pthread_mutex_unlock(&cam->live_view_pixbuf_mutex);
+    dt_pthread_mutex_safe_unlock(&cam->live_view_pixbuf_mutex);
     return;
   }
   double w = width - (MARGIN * 2.0f);
@@ -588,6 +588,7 @@ void gui_post_expose(dt_lib_module_t *self, cairo_t *cr, int32_t width, int32_t 
             break;
           default:
             fprintf(stderr, "OMFG, the world will collapse, this shouldn't be reachable!\n");
+            dt_pthread_mutex_safe_unlock(&cam->live_view_pixbuf_mutex);
             return;
         }
 
@@ -709,7 +710,7 @@ void gui_post_expose(dt_lib_module_t *self, cairo_t *cr, int32_t width, int32_t 
     cairo_stroke(cr);
   }
   cairo_restore(cr);
-  dt_pthread_mutex_unlock(&cam->live_view_pixbuf_mutex);
+  dt_pthread_mutex_safe_unlock(&cam->live_view_pixbuf_mutex);
 }
 
 int button_released(struct dt_lib_module_t *self, double x, double y, int which, uint32_t state)

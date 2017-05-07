@@ -353,7 +353,7 @@ static void _camera_process_job(const dt_camctl_t *c, const dt_camera_t *camera,
         {
           if(gdk_pixbuf_loader_write(loader, (guchar *)data, data_size, NULL) == TRUE)
           {
-            dt_pthread_mutex_lock(&cam->live_view_pixbuf_mutex);
+            dt_pthread_mutex_safe_lock(&cam->live_view_pixbuf_mutex);
             if(cam->live_view_pixbuf != NULL) g_object_unref(cam->live_view_pixbuf);
             // Calling gdk_pixbuf_loader_close forces the data to be parsed by the
             // loader.  We must do this before calling gdk_pixbuf_loader_get_pixbuf.
@@ -365,7 +365,7 @@ static void _camera_process_job(const dt_camctl_t *c, const dt_camera_t *camera,
               g_error_free(error);
             }
             cam->live_view_pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
-            dt_pthread_mutex_unlock(&cam->live_view_pixbuf_mutex);
+            dt_pthread_mutex_safe_unlock(&cam->live_view_pixbuf_mutex);
           }
         }
         gdk_pixbuf_loader_close(loader, NULL);
@@ -630,7 +630,7 @@ static void dt_camctl_camera_destroy(dt_camera_t *cam)
   g_free(cam->model);
   g_free(cam->port);
   dt_pthread_mutex_safe_destroy(&cam->config_lock);
-  dt_pthread_mutex_destroy(&cam->live_view_pixbuf_mutex);
+  dt_pthread_mutex_safe_destroy(&cam->live_view_pixbuf_mutex);
   dt_pthread_mutex_destroy(&cam->live_view_synch);
   // TODO: cam->jobqueue
   g_free(cam);
@@ -721,7 +721,7 @@ void dt_camctl_detect_cameras(const dt_camctl_t *c)
     gp_list_get_value(available_cameras, i, &s);
     camera->port = g_strdup(s);
     dt_pthread_mutex_safe_init(&camera->config_lock, NULL);
-    dt_pthread_mutex_init(&camera->live_view_pixbuf_mutex, NULL);
+    dt_pthread_mutex_safe_init(&camera->live_view_pixbuf_mutex, NULL);
     dt_pthread_mutex_init(&camera->live_view_synch, NULL);
 
     // if(strcmp(camera->port,"usb:")==0) { g_free(camera); continue; }

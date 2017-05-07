@@ -97,7 +97,7 @@ typedef struct dt_camera_t
   /** The thread adding the live view jobs */
   pthread_t live_view_thread;
   /** A guard so that writing and reading the pixbuf don't interfere */
-  dt_pthread_mutex_t live_view_pixbuf_mutex;
+  dt_pthread_mutex_safe_t live_view_pixbuf_mutex;
   /** A flag to tell the live view thread that the last job was completed */
   dt_pthread_mutex_t live_view_synch;
 } dt_camera_t;
