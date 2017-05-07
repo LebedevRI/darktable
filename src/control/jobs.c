@@ -44,7 +44,7 @@ typedef struct _dt_job_t
   dt_job_destroy_callback params_destroy;
   int32_t result;
 
-  dt_pthread_mutex_t state_mutex;
+  dt_pthread_mutex_safe_t state_mutex;
   dt_pthread_mutex_t wait_mutex;
 
   dt_job_state_t state;
@@ -77,7 +77,7 @@ static inline int dt_control_job_equal(_dt_job_t *j1, _dt_job_t *j2)
 static void dt_control_job_set_state(_dt_job_t *job, dt_job_state_t state)
 {
   if(!job) return;
-  dt_pthread_mutex_lock(&job->state_mutex);
+  dt_pthread_mutex_safe_lock(&job->state_mutex);
   if(state >= DT_JOB_STATE_FINISHED  && job->state != DT_JOB_STATE_RUNNING && job->progress)
   {
     dt_control_progress_destroy(darktable.control, job->progress);
@@ -86,15 +86,15 @@ static void dt_control_job_set_state(_dt_job_t *job, dt_job_state_t state)
   job->state = state;
   /* pass state change to callback */
   if(job->state_changed_cb) job->state_changed_cb(job, state);
-  dt_pthread_mutex_unlock(&job->state_mutex);
+  dt_pthread_mutex_safe_unlock(&job->state_mutex);
 }
 
 dt_job_state_t dt_control_job_get_state(_dt_job_t *job)
 {
   if(!job) return DT_JOB_STATE_DISPOSED;
-  dt_pthread_mutex_lock(&job->state_mutex);
+  dt_pthread_mutex_safe_lock(&job->state_mutex);
   dt_job_state_t state = job->state;
-  dt_pthread_mutex_unlock(&job->state_mutex);
+  dt_pthread_mutex_safe_unlock(&job->state_mutex);
   return state;
 }
 
@@ -134,7 +134,7 @@ dt_job_t *dt_control_job_create(dt_job_execute_callback execute, const char *msg
   job->execute = execute;
   job->state = DT_JOB_STATE_INITIALIZED;
 
-  dt_pthread_mutex_init(&job->state_mutex, NULL);
+  dt_pthread_mutex_safe_init(&job->state_mutex, NULL);
   dt_pthread_mutex_init(&job->wait_mutex, NULL);
   return job;
 }
@@ -146,7 +146,7 @@ void dt_control_job_dispose(_dt_job_t *job)
   job->progress = NULL;
   dt_control_job_set_state(job, DT_JOB_STATE_DISPOSED);
   if(job->params_destroy) job->params_destroy(job->params);
-  dt_pthread_mutex_destroy(&job->state_mutex);
+  dt_pthread_mutex_safe_destroy(&job->state_mutex);
   dt_pthread_mutex_destroy(&job->wait_mutex);
   free(job);
 }
