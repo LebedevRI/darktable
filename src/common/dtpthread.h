@@ -28,6 +28,121 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Enable thread safety attributes only with clang.
+// The attributes can be safely erased when compiling with other compilers.
+#if defined(__clang__) && (!defined(SWIG))
+#define DT_THREAD_ANNOTATION_ATTRIBUTE(x) __attribute__((x))
+#else
+#define DT_THREAD_ANNOTATION_ATTRIBUTE(x) // no-op
+#endif
+
+#undef CAPABILITY
+#define CAPABILITY(x) DT_THREAD_ANNOTATION_ATTRIBUTE(capability(x))
+
+#undef SCOPED_CAPABILITY
+#define SCOPED_CAPABILITY DT_THREAD_ANNOTATION_ATTRIBUTE(scoped_lockable)
+
+#undef GUARDED_BY
+#define GUARDED_BY(x) DT_THREAD_ANNOTATION_ATTRIBUTE(guarded_by(x))
+
+#undef PT_GUARDED_BY
+#define PT_GUARDED_BY(x) DT_THREAD_ANNOTATION_ATTRIBUTE(pt_guarded_by(x))
+
+#undef ACQUIRED_BEFORE
+#define ACQUIRED_BEFORE(...) DT_THREAD_ANNOTATION_ATTRIBUTE(acquired_before(__VA_ARGS__))
+
+#undef ACQUIRED_AFTER
+#define ACQUIRED_AFTER(...) DT_THREAD_ANNOTATION_ATTRIBUTE(acquired_after(__VA_ARGS__))
+
+#undef REQUIRES
+#define REQUIRES(...) DT_THREAD_ANNOTATION_ATTRIBUTE(requires_capability(__VA_ARGS__))
+
+#undef REQUIRES_SHARED
+#define REQUIRES_SHARED(...) DT_THREAD_ANNOTATION_ATTRIBUTE(requires_shared_capability(__VA_ARGS__))
+
+#undef ACQUIRE
+#define ACQUIRE(...) DT_THREAD_ANNOTATION_ATTRIBUTE(acquire_capability(__VA_ARGS__))
+
+#undef ACQUIRE_SHARED
+#define ACQUIRE_SHARED(...) DT_THREAD_ANNOTATION_ATTRIBUTE(acquire_shared_capability(__VA_ARGS__))
+
+#undef RELEASE
+#define RELEASE(...) DT_THREAD_ANNOTATION_ATTRIBUTE(release_capability(__VA_ARGS__))
+
+#undef RELEASE_SHARED
+#define RELEASE_SHARED(...) DT_THREAD_ANNOTATION_ATTRIBUTE(release_shared_capability(__VA_ARGS__))
+
+#undef TRY_ACQUIRE
+#define TRY_ACQUIRE(...) DT_THREAD_ANNOTATION_ATTRIBUTE(try_acquire_capability(__VA_ARGS__))
+
+#undef TRY_ACQUIRE_SHARED
+#define TRY_ACQUIRE_SHARED(...) DT_THREAD_ANNOTATION_ATTRIBUTE(try_acquire_shared_capability(__VA_ARGS__))
+
+#undef EXCLUDES
+#define EXCLUDES(...) DT_THREAD_ANNOTATION_ATTRIBUTE(locks_excluded(__VA_ARGS__))
+
+#undef ASSERT_CAPABILITY
+#define ASSERT_CAPABILITY(x) DT_THREAD_ANNOTATION_ATTRIBUTE(assert_capability(x))
+
+#undef ASSERT_SHARED_CAPABILITY
+#define ASSERT_SHARED_CAPABILITY(x) DT_THREAD_ANNOTATION_ATTRIBUTE(assert_shared_capability(x))
+
+#undef RETURN_CAPABILITY
+#define RETURN_CAPABILITY(x) DT_THREAD_ANNOTATION_ATTRIBUTE(lock_returned(x))
+
+#undef NO_THREAD_SAFETY_ANALYSIS
+#define NO_THREAD_SAFETY_ANALYSIS DT_THREAD_ANNOTATION_ATTRIBUTE(no_thread_safety_analysis)
+
+
+// The original version of thread safety analysis the following attribute
+// definitions.  These use a lock-based terminology.  They are still in use
+// by existing thread safety code, and will continue to be supported.
+
+// Deprecated.
+#define PT_GUARDED_VAR DT_THREAD_ANNOTATION_ATTRIBUTE(pt_guarded)
+
+// Deprecated.
+#define GUARDED_VAR DT_THREAD_ANNOTATION_ATTRIBUTE(guarded)
+
+// Replaced by REQUIRES
+#define EXCLUSIVE_LOCKS_REQUIRED(...) DT_THREAD_ANNOTATION_ATTRIBUTE(exclusive_locks_required(__VA_ARGS__))
+
+// Replaced by REQUIRES_SHARED
+#define SHARED_LOCKS_REQUIRED(...) DT_THREAD_ANNOTATION_ATTRIBUTE(shared_locks_required(__VA_ARGS__))
+
+// Replaced by CAPABILITY
+#define LOCKABLE DT_THREAD_ANNOTATION_ATTRIBUTE(lockable)
+
+// Replaced by SCOPED_CAPABILITY
+#define SCOPED_LOCKABLE DT_THREAD_ANNOTATION_ATTRIBUTE(scoped_lockable)
+
+// Replaced by ACQUIRE
+#define EXCLUSIVE_LOCK_FUNCTION(...) DT_THREAD_ANNOTATION_ATTRIBUTE(exclusive_lock_function(__VA_ARGS__))
+
+// Replaced by ACQUIRE_SHARED
+#define SHARED_LOCK_FUNCTION(...) DT_THREAD_ANNOTATION_ATTRIBUTE(shared_lock_function(__VA_ARGS__))
+
+// Replaced by RELEASE and RELEASE_SHARED
+#define UNLOCK_FUNCTION(...) DT_THREAD_ANNOTATION_ATTRIBUTE(unlock_function(__VA_ARGS__))
+
+// Replaced by TRY_ACQUIRE
+#define EXCLUSIVE_TRYLOCK_FUNCTION(...) DT_THREAD_ANNOTATION_ATTRIBUTE(exclusive_trylock_function(__VA_ARGS__))
+
+// Replaced by TRY_ACQUIRE_SHARED
+#define SHARED_TRYLOCK_FUNCTION(...) DT_THREAD_ANNOTATION_ATTRIBUTE(shared_trylock_function(__VA_ARGS__))
+
+// Replaced by ASSERT_CAPABILITY
+#define ASSERT_EXCLUSIVE_LOCK(...) DT_THREAD_ANNOTATION_ATTRIBUTE(assert_exclusive_lock(__VA_ARGS__))
+
+// Replaced by ASSERT_SHARED_CAPABILITY
+#define ASSERT_SHARED_LOCK(...) DT_THREAD_ANNOTATION_ATTRIBUTE(assert_shared_lock(__VA_ARGS__))
+
+// Replaced by EXCLUDE_CAPABILITY.
+#define LOCKS_EXCLUDED(...) DT_THREAD_ANNOTATION_ATTRIBUTE(locks_excluded(__VA_ARGS__))
+
+// Replaced by RETURN_CAPABILITY
+#define LOCK_RETURNED(x) DT_THREAD_ANNOTATION_ATTRIBUTE(lock_returned(x))
+
 #ifdef _DEBUG
 
 // copied from darktable.h so we don't need to include the header
@@ -313,6 +428,37 @@ static inline int dt_pthread_rwlock_trywrlock_with_caller(dt_pthread_rwlock_t *r
 #define dt_pthread_rwlock_trywrlock_with_caller(A,B,C) pthread_rwlock_trywrlock(A)
 
 #endif
+
+typedef struct CAPABILITY("mutex") dt_pthread_mutex_safe_t
+{
+  pthread_mutex_t Mutex;
+} CAPABILITY("mutex") dt_pthread_mutex_safe_t;
+
+inline int dt_pthread_mutex_safe_init(dt_pthread_mutex_safe_t *mutex, const pthread_mutexattr_t *mutexattr)
+{
+  return pthread_mutex_init(&mutex->Mutex, mutexattr);
+};
+
+inline int dt_pthread_mutex_safe_lock(dt_pthread_mutex_safe_t *mutex) ACQUIRE(mutex) NO_THREAD_SAFETY_ANALYSIS
+{
+  return pthread_mutex_lock(&mutex->Mutex);
+};
+
+inline int dt_pthread_mutex_safe_trylock(dt_pthread_mutex_safe_t *mutex) TRY_ACQUIRE(0, mutex)
+{
+  return pthread_mutex_trylock(&mutex->Mutex);
+};
+
+inline int dt_pthread_mutex_safe_unlock(dt_pthread_mutex_safe_t *mutex) RELEASE(mutex) NO_THREAD_SAFETY_ANALYSIS
+{
+  return pthread_mutex_unlock(&mutex->Mutex);
+};
+
+inline int dt_pthread_mutex_safe_destroy(dt_pthread_mutex_safe_t *mutex)
+{
+  return pthread_mutex_destroy(&mutex->Mutex);
+};
+
 
 int dt_pthread_create(pthread_t *thread, void *(*start_routine)(void *), void *arg);
 
