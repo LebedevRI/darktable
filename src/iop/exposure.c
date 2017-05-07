@@ -83,7 +83,7 @@ typedef struct dt_iop_exposure_gui_data_t
   dt_dev_histogram_stats_t deflicker_histogram_stats;
   GtkLabel *deflicker_used_EC;
   float deflicker_computed_exposure;
-  dt_pthread_mutex_t lock;
+  dt_pthread_mutex_safe_t lock;
 } dt_iop_exposure_gui_data_t;
 
 typedef struct dt_iop_exposure_data_t
@@ -345,9 +345,9 @@ static void process_common_setup(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *
     // second, show computed correction in UI.
     if(g && piece->pipe->type == DT_DEV_PIXELPIPE_PREVIEW)
     {
-      dt_pthread_mutex_lock(&g->lock);
+      dt_pthread_mutex_safe_lock(&g->lock);
       g->deflicker_computed_exposure = exposure;
-      dt_pthread_mutex_unlock(&g->lock);
+      dt_pthread_mutex_safe_unlock(&g->lock);
     }
   }
 
@@ -508,9 +508,9 @@ void gui_update(struct dt_iop_module_t *self)
   g->deflicker_histogram = NULL;
 
   gtk_label_set_text(g->deflicker_used_EC, "");
-  dt_pthread_mutex_lock(&g->lock);
+  dt_pthread_mutex_safe_lock(&g->lock);
   g->deflicker_computed_exposure = NAN;
-  dt_pthread_mutex_unlock(&g->lock);
+  dt_pthread_mutex_safe_unlock(&g->lock);
 
   switch(p->mode)
   {
@@ -790,7 +790,7 @@ static gboolean draw(GtkWidget *widget, cairo_t *cr, dt_iop_module_t *self)
 
   dt_iop_exposure_gui_data_t *g = (dt_iop_exposure_gui_data_t *)self->gui_data;
 
-  dt_pthread_mutex_lock(&g->lock);
+  dt_pthread_mutex_safe_lock(&g->lock);
   if(!isnan(g->deflicker_computed_exposure))
   {
     gchar *str = g_strdup_printf("%.2fEV", g->deflicker_computed_exposure);
@@ -801,7 +801,7 @@ static gboolean draw(GtkWidget *widget, cairo_t *cr, dt_iop_module_t *self)
 
     g_free(str);
   }
-  dt_pthread_mutex_unlock(&g->lock);
+  dt_pthread_mutex_safe_unlock(&g->lock);
 
   if(self->request_color_pick != DT_REQUEST_COLORPICK_MODULE) return FALSE;
 
@@ -827,7 +827,7 @@ void gui_init(struct dt_iop_module_t *self)
 
   g->deflicker_histogram = NULL;
 
-  dt_pthread_mutex_init(&g->lock, NULL);
+  dt_pthread_mutex_safe_init(&g->lock, NULL);
 
   /* register hooks with current dev so that  histogram
      can interact with this module.
@@ -915,9 +915,9 @@ void gui_init(struct dt_iop_module_t *self)
   gtk_widget_set_tooltip_text(GTK_WIDGET(g->deflicker_used_EC), _("what exposure correction has actually been used"));
   gtk_box_pack_start(GTK_BOX(hbox1), GTK_WIDGET(g->deflicker_used_EC), FALSE, FALSE, 0);
 
-  dt_pthread_mutex_lock(&g->lock);
+  dt_pthread_mutex_safe_lock(&g->lock);
   g->deflicker_computed_exposure = NAN;
-  dt_pthread_mutex_unlock(&g->lock);
+  dt_pthread_mutex_safe_unlock(&g->lock);
 
   gtk_box_pack_start(GTK_BOX(vbox_deflicker), GTK_WIDGET(hbox1), FALSE, FALSE, 0);
 
@@ -957,7 +957,7 @@ void gui_cleanup(struct dt_iop_module_t *self)
   g->deflicker_histogram = NULL;
   g_list_free(g->modes);
 
-  dt_pthread_mutex_destroy(&g->lock);
+  dt_pthread_mutex_safe_destroy(&g->lock);
 
   free(self->gui_data);
   self->gui_data = NULL;
