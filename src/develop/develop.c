@@ -1813,8 +1813,8 @@ uint64_t dt_dev_hash_plus(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, in
   return hash;
 }
 
-int dt_dev_wait_hash(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmin, int pmax, dt_pthread_mutex_t *lock,
-                     const volatile uint64_t *const hash)
+int dt_dev_wait_hash(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmin, int pmax,
+                     dt_pthread_mutex_safe_t *lock, const volatile uint64_t *const hash)
 {
   const int usec = 5000;
   int nloop;
@@ -1835,9 +1835,16 @@ int dt_dev_wait_hash(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmi
     if(pipe->shutdown)
       return TRUE;  // stop waiting if pipe shuts down
 
-    if(lock) dt_pthread_mutex_lock(lock);
-    const uint64_t probehash = *hash;
-    if(lock) dt_pthread_mutex_unlock(lock);
+    uint64_t probehash;
+
+    if(lock)
+    {
+      dt_pthread_mutex_safe_lock(lock);
+      probehash = *hash;
+      dt_pthread_mutex_safe_unlock(lock);
+    }
+    else
+      probehash = *hash;
 
     if(probehash == dt_dev_hash_plus(dev, pipe, pmin, pmax))
       return TRUE;
@@ -1848,8 +1855,8 @@ int dt_dev_wait_hash(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmi
   return FALSE;
 }
 
-int dt_dev_sync_pixelpipe_hash(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmin, int pmax, dt_pthread_mutex_t *lock,
-                               const volatile uint64_t *const hash)
+int dt_dev_sync_pixelpipe_hash(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmin, int pmax,
+                               dt_pthread_mutex_safe_t *lock, const volatile uint64_t *const hash)
 {
   // first wait for matching hash values
   if(dt_dev_wait_hash(dev, pipe, pmin, pmax, lock, hash))

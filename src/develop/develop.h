@@ -357,11 +357,11 @@ uint64_t dt_dev_hash(dt_develop_t *dev);
 /** same function, but we can specify iop with priority between pmin and pmax */
 uint64_t dt_dev_hash_plus(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmin, int pmax);
 /** wait until hash value found in hash matches hash value defined by dev/pipe/pmin/pmax with timeout */
-int dt_dev_wait_hash(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmin, int pmax, dt_pthread_mutex_t *lock,
-                     const volatile uint64_t *const hash);
+int dt_dev_wait_hash(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmin, int pmax,
+                     dt_pthread_mutex_safe_t *lock, const volatile uint64_t *const hash);
 /** synchronize pixelpipe by means hash values by waiting with timeout and potential reprocessing */
-int dt_dev_sync_pixelpipe_hash(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmin, int pmax, dt_pthread_mutex_t *lock,
-                               const volatile uint64_t *const hash);
+int dt_dev_sync_pixelpipe_hash(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmin, int pmax,
+                               dt_pthread_mutex_safe_t *lock, const volatile uint64_t *const hash);
 /** generate hash value out of module settings of all distorting modules of pixelpipe */
 uint64_t dt_dev_hash_distort(dt_develop_t *dev);
 /** same function, but we can specify iop with priority between pmin and pmax */

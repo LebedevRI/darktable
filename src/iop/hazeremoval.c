@@ -837,8 +837,7 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
     // cases we make sure that the preview pipe has left us with
     // proper readings for distance_max and A0.  If data are not yet
     // there we need to wait (with timeout).
-    if(hash != 0
-       && !dt_dev_sync_pixelpipe_hash(self->dev, piece->pipe, 0, self->priority, &g->lock.Mutex, &g->hash))
+    if(hash != 0 && !dt_dev_sync_pixelpipe_hash(self->dev, piece->pipe, 0, self->priority, &g->lock, &g->hash))
       dt_control_log(_("inconsistent output"));
     dt_pthread_mutex_safe_lock(&g->lock);
     A0[0] = g->A0[0];

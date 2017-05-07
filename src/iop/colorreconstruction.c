@@ -620,7 +620,7 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
     // if we are zoomed in more than just a little bit, we try to use the canned grid of the preview pipeline
     if(cur_scale > 1.05f * min_scale)
     {
-      if(!dt_dev_sync_pixelpipe_hash(self->dev, piece->pipe, 0, self->priority, &g->lock.Mutex, &g->hash))
+      if(!dt_dev_sync_pixelpipe_hash(self->dev, piece->pipe, 0, self->priority, &g->lock, &g->hash))
         dt_control_log(_("inconsistent output"));
 
       dt_pthread_mutex_safe_lock(&g->lock);
@@ -1109,7 +1109,7 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
     // if we are zoomed in more than just a little bit, we try to use the canned grid of the preview pipeline
     if(cur_scale > 1.05f * min_scale)
     {
-      if(!dt_dev_sync_pixelpipe_hash(self->dev, piece->pipe, 0, self->priority, &g->lock.Mutex, &g->hash))
+      if(!dt_dev_sync_pixelpipe_hash(self->dev, piece->pipe, 0, self->priority, &g->lock, &g->hash))
         dt_control_log(_("inconsistent output"));
 
       dt_pthread_mutex_safe_lock(&g->lock);
