@@ -100,7 +100,7 @@ typedef struct dt_iop_lensfun_gui_data_t
   GList *modifiers;
   GtkLabel *message;
   int corrections_done;
-  dt_pthread_mutex_t lock;
+  dt_pthread_mutex_safe_t lock;
 } dt_iop_lensfun_gui_data_t;
 
 typedef struct dt_iop_lensfun_global_data_t
@@ -518,9 +518,9 @@ void process(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *c
 
   if(self->dev->gui_attached && g && piece->pipe->type == DT_DEV_PIXELPIPE_PREVIEW)
   {
-    dt_pthread_mutex_lock(&g->lock);
+    dt_pthread_mutex_safe_lock(&g->lock);
     g->corrections_done = (modflags & LENSFUN_MODFLAG_MASK);
-    dt_pthread_mutex_unlock(&g->lock);
+    dt_pthread_mutex_safe_unlock(&g->lock);
   }
 }
 
@@ -759,9 +759,9 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
 
   if(self->dev->gui_attached && g && piece->pipe->type == DT_DEV_PIXELPIPE_PREVIEW)
   {
-    dt_pthread_mutex_lock(&g->lock);
+    dt_pthread_mutex_safe_lock(&g->lock);
     g->corrections_done = (modflags & LENSFUN_MODFLAG_MASK);
-    dt_pthread_mutex_unlock(&g->lock);
+    dt_pthread_mutex_safe_unlock(&g->lock);
   }
 
   dt_opencl_release_mem_object(dev_tmpbuf);
@@ -1217,9 +1217,9 @@ void reload_defaults(dt_iop_module_t *module)
   if(module->gui_data)
   {
     dt_iop_lensfun_gui_data_t *g = (dt_iop_lensfun_gui_data_t *)module->gui_data;
-    dt_pthread_mutex_lock(&g->lock);
+    dt_pthread_mutex_safe_lock(&g->lock);
     g->corrections_done = -1;
-    dt_pthread_mutex_unlock(&g->lock);
+    dt_pthread_mutex_safe_unlock(&g->lock);
     gtk_label_set_text(g->message, "");
   }
 
@@ -2030,9 +2030,9 @@ static void corrections_done(gpointer instance, gpointer user_data)
   dt_iop_lensfun_gui_data_t *g = (dt_iop_lensfun_gui_data_t *)self->gui_data;
   if(darktable.gui->reset) return;
 
-  dt_pthread_mutex_lock(&g->lock);
+  dt_pthread_mutex_safe_lock(&g->lock);
   const int corrections_done = g->corrections_done;
-  dt_pthread_mutex_unlock(&g->lock);
+  dt_pthread_mutex_safe_unlock(&g->lock);
 
   char *message = "";
   GList *modifiers = g->modifiers;
@@ -2062,16 +2062,16 @@ void gui_init(struct dt_iop_module_t *self)
   dt_iop_lensfun_gui_data_t *g = (dt_iop_lensfun_gui_data_t *)self->gui_data;
   dt_iop_lensfun_params_t *p = (dt_iop_lensfun_params_t *)self->params;
 
-  dt_pthread_mutex_init(&g->lock, NULL);
+  dt_pthread_mutex_safe_init(&g->lock, NULL);
 
   g->camera = NULL;
   g->camera_menu = NULL;
   g->lens_menu = NULL;
   g->modifiers = NULL;
 
-  dt_pthread_mutex_lock(&g->lock);
+  dt_pthread_mutex_safe_lock(&g->lock);
   g->corrections_done = -1;
-  dt_pthread_mutex_unlock(&g->lock);
+  dt_pthread_mutex_safe_unlock(&g->lock);
 
   // initialize modflags options
   int pos = -1;
@@ -2354,7 +2354,7 @@ void gui_cleanup(struct dt_iop_module_t *self)
     g->modifiers = g_list_delete_link(g->modifiers, g->modifiers);
   }
 
-  dt_pthread_mutex_destroy(&g->lock);
+  dt_pthread_mutex_safe_destroy(&g->lock);
 
   free(self->gui_data);
   self->gui_data = NULL;
