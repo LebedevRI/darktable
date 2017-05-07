@@ -239,7 +239,7 @@ typedef struct {
 } dt_iop_liquify_global_data_t;
 
 typedef struct {
-  dt_pthread_mutex_t lock;
+  dt_pthread_mutex_safe_t lock;
   dt_iop_liquify_params_t params;
   int node_index; // last node index inserted
 
@@ -2540,12 +2540,12 @@ void gui_post_expose (struct dt_iop_module_t *module,
     return;
 
   // get a copy of all iop params
-  dt_pthread_mutex_lock (&g->lock);
+  dt_pthread_mutex_safe_lock(&g->lock);
   update_warp_count (g);
   smooth_paths_linsys (&g->params);
   dt_iop_liquify_params_t copy_params;
   memcpy(&copy_params, &g->params, sizeof(dt_iop_liquify_params_t));
-  dt_pthread_mutex_unlock (&g->lock);
+  dt_pthread_mutex_safe_unlock(&g->lock);
 
   // distort all points
   dt_pthread_mutex_lock(&develop->preview_pipe_mutex);
@@ -2643,7 +2643,7 @@ int mouse_moved (struct dt_iop_module_t *module,
 
   get_point_scale(module, x, y, &pt, &scale);
 
-  dt_pthread_mutex_lock (&g->lock);
+  dt_pthread_mutex_safe_lock(&g->lock);
 
   g->last_mouse_pos = pt;
   const int dragged = detect_drag (g, scale, pt);
@@ -2784,7 +2784,7 @@ int mouse_moved (struct dt_iop_module_t *module,
   }
 
 done:
-  dt_pthread_mutex_unlock (&g->lock);
+  dt_pthread_mutex_safe_unlock(&g->lock);
   if (handled) {
     sync_pipe (module, handled == 2);
   }
@@ -2806,7 +2806,7 @@ int button_pressed (struct dt_iop_module_t *module,
 
   get_point_scale(module, x, y, &pt, &scale);
 
-  dt_pthread_mutex_lock (&g->lock);
+  dt_pthread_mutex_safe_lock(&g->lock);
 
   g->last_mouse_pos = pt;
   g->last_mouse_mods = state & gtk_accelerator_get_default_mod_mask ();
@@ -2904,7 +2904,7 @@ int button_pressed (struct dt_iop_module_t *module,
   }
 
 done:
-  dt_pthread_mutex_unlock (&g->lock);
+  dt_pthread_mutex_safe_unlock(&g->lock);
   if (handled)
     sync_pipe (module, TRUE);
   return handled;
@@ -2923,7 +2923,7 @@ int button_released (struct dt_iop_module_t *module,
 
   get_point_scale(module, x, y, &pt, &scale);
 
-  dt_pthread_mutex_lock (&g->lock);
+  dt_pthread_mutex_safe_lock(&g->lock);
 
   g->last_mouse_pos = pt;
 
@@ -3161,7 +3161,7 @@ done:
   if (which == 1)
     g->last_button1_pressed_pos = -1;
   g->last_hit = NOWHERE;
-  dt_pthread_mutex_unlock (&g->lock);
+  dt_pthread_mutex_safe_unlock(&g->lock);
   if (handled) {
     update_warp_count (g);
     sync_pipe (module, handled == 2);
@@ -3238,7 +3238,7 @@ void gui_init (dt_iop_module_t *module)
   g->last_mouse_pos =
   g->last_button1_pressed_pos = -1;
   g->last_hit = NOWHERE;
-  dt_pthread_mutex_init (&g->lock, NULL);
+  dt_pthread_mutex_safe_init(&g->lock, NULL);
   g->node_index = 0;
 
   module->widget = gtk_box_new (GTK_ORIENTATION_VERTICAL, 5);
@@ -3304,7 +3304,7 @@ void gui_cleanup (dt_iop_module_t *module)
   if (g)
   {
     cairo_destroy (g->fake_cr);
-    dt_pthread_mutex_destroy (&g->lock);
+    dt_pthread_mutex_safe_destroy(&g->lock);
     free (g);
   }
   module->gui_data = NULL;
