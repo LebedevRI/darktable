@@ -62,7 +62,7 @@ void dt_control_init(dt_control_t *s)
   dt_pthread_mutex_safe_init(&s->cond_mutex, NULL);
   dt_pthread_mutex_safe_init(&s->queue_mutex, NULL);
   dt_pthread_mutex_safe_init(&s->res_mutex, NULL);
-  dt_pthread_mutex_init(&s->run_mutex, NULL);
+  dt_pthread_mutex_safe_init(&s->run_mutex, NULL);
   dt_pthread_mutex_init(&(s->global_mutex), NULL);
   dt_pthread_mutex_safe_init(&(s->progress_system.mutex), NULL);
 
@@ -110,9 +110,9 @@ int dt_control_running()
 {
   // FIXME: when shutdown, run_mutex is not inited anymore!
   dt_control_t *s = darktable.control;
-  dt_pthread_mutex_lock(&s->run_mutex);
+  dt_pthread_mutex_safe_lock(&s->run_mutex);
   int running = s->running;
-  dt_pthread_mutex_unlock(&s->run_mutex);
+  dt_pthread_mutex_safe_unlock(&s->run_mutex);
   return running;
 }
 
@@ -121,9 +121,9 @@ void dt_control_quit()
   dt_gui_gtk_quit();
   // thread safe quit, 1st pass:
   dt_pthread_mutex_safe_lock(&darktable.control->cond_mutex);
-  dt_pthread_mutex_lock(&darktable.control->run_mutex);
+  dt_pthread_mutex_safe_lock(&darktable.control->run_mutex);
   darktable.control->running = 0;
-  dt_pthread_mutex_unlock(&darktable.control->run_mutex);
+  dt_pthread_mutex_safe_unlock(&darktable.control->run_mutex);
   dt_pthread_mutex_safe_unlock(&darktable.control->cond_mutex);
 
   gtk_main_quit();
@@ -132,9 +132,9 @@ void dt_control_quit()
 void dt_control_shutdown(dt_control_t *s)
 {
   dt_pthread_mutex_safe_lock(&s->cond_mutex);
-  dt_pthread_mutex_lock(&s->run_mutex);
+  dt_pthread_mutex_safe_lock(&s->run_mutex);
   s->running = 0;
-  dt_pthread_mutex_unlock(&s->run_mutex);
+  dt_pthread_mutex_safe_unlock(&s->run_mutex);
   dt_pthread_mutex_safe_unlock(&s->cond_mutex);
   pthread_cond_broadcast(&s->cond);
 
@@ -161,7 +161,7 @@ void dt_control_cleanup(dt_control_t *s)
   dt_pthread_mutex_safe_destroy(&s->cond_mutex);
   dt_pthread_mutex_safe_destroy(&s->log_mutex);
   dt_pthread_mutex_safe_destroy(&s->res_mutex);
-  dt_pthread_mutex_destroy(&s->run_mutex);
+  dt_pthread_mutex_safe_destroy(&s->run_mutex);
   dt_pthread_mutex_safe_destroy(&s->progress_system.mutex);
   if(s->accelerator_list)
   {

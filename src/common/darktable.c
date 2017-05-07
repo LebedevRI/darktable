@@ -875,7 +875,7 @@ int dt_init(int argc, char *argv[], const gboolean init_gui, const gboolean load
       dt_gui_presets_init(); // init preset db schema.
     darktable.control->running = 0;
     darktable.control->accelerators = NULL;
-    dt_pthread_mutex_init(&darktable.control->run_mutex, NULL);
+    dt_pthread_mutex_safe_init(&darktable.control->run_mutex, NULL);
   }
 
   // initialize collection query

@@ -599,9 +599,9 @@ void dt_control_jobs_init(dt_control_t *control)
   control->num_threads = CLAMP(dt_conf_get_int("worker_threads"), 1, 8);
   control->thread = (pthread_t *)calloc(control->num_threads, sizeof(pthread_t));
   control->job = (dt_job_t **)calloc(control->num_threads, sizeof(dt_job_t *));
-  dt_pthread_mutex_lock(&control->run_mutex);
+  dt_pthread_mutex_safe_lock(&control->run_mutex);
   control->running = 1;
-  dt_pthread_mutex_unlock(&control->run_mutex);
+  dt_pthread_mutex_safe_unlock(&control->run_mutex);
   for(int k = 0; k < control->num_threads; k++)
   {
     worker_thread_parameters_t *params

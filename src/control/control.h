@@ -163,7 +163,7 @@ typedef struct dt_control_t
   gboolean export_scheduled;
   dt_pthread_mutex_safe_t queue_mutex;
   dt_pthread_mutex_safe_t cond_mutex;
-  dt_pthread_mutex_t run_mutex;
+  dt_pthread_mutex_safe_t run_mutex;
   pthread_cond_t cond;
   int32_t num_threads;
   pthread_t *thread, kick_on_workers_thread;
