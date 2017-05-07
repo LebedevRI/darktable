@@ -185,7 +185,7 @@ void expose(
   {
     // draw image
     roi_hash_old = roi_hash;
-    dt_pthread_mutex_lock(&dev->pipe->backbuf_mutex);
+    dt_pthread_mutex_safe_lock(&dev->pipe->backbuf_mutex);
     float wd = dev->pipe->backbuf_width;
     float ht = dev->pipe->backbuf_height;
     stride = cairo_format_stride_for_width(CAIRO_FORMAT_RGB24, wd);
@@ -211,14 +211,14 @@ void expose(
     cairo_set_source_rgb(cr, .3, .3, .3);
     cairo_stroke(cr);
     cairo_surface_destroy(surface);
-    dt_pthread_mutex_unlock(&dev->pipe->backbuf_mutex);
+    dt_pthread_mutex_safe_unlock(&dev->pipe->backbuf_mutex);
     image_surface_imgid = dev->image_storage.id;
   }
   else if((dev->preview_status == DT_DEV_PIXELPIPE_VALID) && (roi_hash != roi_hash_old))
   {
     // draw preview
     roi_hash_old = roi_hash;
-    dt_pthread_mutex_lock(&dev->preview_pipe->backbuf_mutex);
+    dt_pthread_mutex_safe_lock(&dev->preview_pipe->backbuf_mutex);
 
     const float wd = dev->preview_pipe->backbuf_width;
     const float ht = dev->preview_pipe->backbuf_height;
@@ -239,7 +239,7 @@ void expose(
     cairo_pattern_set_filter(cairo_get_source(cr), CAIRO_FILTER_FAST);
     cairo_fill(cr);
     cairo_surface_destroy(surface);
-    dt_pthread_mutex_unlock(&dev->preview_pipe->backbuf_mutex);
+    dt_pthread_mutex_safe_unlock(&dev->preview_pipe->backbuf_mutex);
     image_surface_imgid = dev->image_storage.id;
   }
   cairo_restore(cri);

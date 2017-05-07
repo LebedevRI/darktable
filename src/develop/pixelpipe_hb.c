@@ -147,7 +147,7 @@ int dt_dev_pixelpipe_init_cached(dt_dev_pixelpipe_t *pipe, size_t size, int32_t 
   pipe->mask_display = 0;
   pipe->input_timestamp = 0;
   pipe->levels = IMAGEIO_RGB | IMAGEIO_INT8;
-  dt_pthread_mutex_init(&(pipe->backbuf_mutex), NULL);
+  dt_pthread_mutex_safe_init(&(pipe->backbuf_mutex), NULL);
   dt_pthread_mutex_init(&(pipe->busy_mutex), NULL);
   return 1;
 }
@@ -165,14 +165,14 @@ void dt_dev_pixelpipe_set_input(dt_dev_pixelpipe_t *pipe, dt_develop_t *dev, flo
 
 void dt_dev_pixelpipe_cleanup(dt_dev_pixelpipe_t *pipe)
 {
-  dt_pthread_mutex_lock(&pipe->backbuf_mutex);
+  dt_pthread_mutex_safe_lock(&pipe->backbuf_mutex);
   pipe->backbuf = NULL;
   // blocks while busy and sets shutdown bit:
   dt_dev_pixelpipe_cleanup_nodes(pipe);
   // so now it's safe to clean up cache:
   dt_dev_pixelpipe_cache_cleanup(&(pipe->cache));
-  dt_pthread_mutex_unlock(&pipe->backbuf_mutex);
-  dt_pthread_mutex_destroy(&(pipe->backbuf_mutex));
+  dt_pthread_mutex_safe_unlock(&pipe->backbuf_mutex);
+  dt_pthread_mutex_safe_destroy(&(pipe->backbuf_mutex));
   dt_pthread_mutex_destroy(&(pipe->busy_mutex));
 }
 
@@ -2325,12 +2325,12 @@ restart:
   }
 
   // terminate
-  dt_pthread_mutex_lock(&pipe->backbuf_mutex);
+  dt_pthread_mutex_safe_lock(&pipe->backbuf_mutex);
   pipe->backbuf_hash = dt_dev_pixelpipe_cache_hash(pipe->image.id, &roi, pipe, 0);
   pipe->backbuf = buf;
   pipe->backbuf_width = width;
   pipe->backbuf_height = height;
-  dt_pthread_mutex_unlock(&pipe->backbuf_mutex);
+  dt_pthread_mutex_safe_unlock(&pipe->backbuf_mutex);
 
   // printf("pixelpipe homebrew process end\n");
   pipe->processing = 0;

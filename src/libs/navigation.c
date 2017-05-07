@@ -174,10 +174,10 @@ static gboolean _lib_navigation_draw_callback(GtkWidget *widget, cairo_t *crf, g
     /* update buffer if new data is available */
     if(d->buffer && dev->preview_pipe->input_timestamp > d->timestamp)
     {
-      dt_pthread_mutex_lock(&dev->preview_pipe->backbuf_mutex);
+      dt_pthread_mutex_safe_lock(&dev->preview_pipe->backbuf_mutex);
       memcpy(d->buffer, dev->preview_pipe->backbuf, (size_t)d->wd * d->ht * 4 * sizeof(unsigned char));
       d->timestamp = dev->preview_pipe->input_timestamp;
-      dt_pthread_mutex_unlock(&dev->preview_pipe->backbuf_mutex);
+      dt_pthread_mutex_safe_unlock(&dev->preview_pipe->backbuf_mutex);
     }
   }
 
