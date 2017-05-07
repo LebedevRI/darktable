@@ -460,6 +460,12 @@ inline int dt_pthread_mutex_safe_destroy(dt_pthread_mutex_safe_t *mutex)
 };
 
 
+inline int dt_pthread_cond_wait_safe(pthread_cond_t *cond, dt_pthread_mutex_safe_t *mutex)
+{
+  return pthread_cond_wait(cond, &mutex->Mutex);
+};
+
+
 int dt_pthread_create(pthread_t *thread, void *(*start_routine)(void *), void *arg);
 
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
