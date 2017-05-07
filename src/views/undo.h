@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "common/dtpthread.h"  // for dt_pthread_mutex_t
+#include "common/dtpthread.h" // for dt_pthread_mutex_safe_t
 #include <glib.h>              // for gpointer, GList
 #include <stdint.h>            // for uint32_t
 
@@ -34,8 +34,8 @@ typedef void *dt_undo_data_t;
 
 typedef struct dt_undo_t
 {
+  dt_pthread_mutex_safe_t mutex;
   GList *undo_list, *redo_list;
-  dt_pthread_mutex_t mutex;
 } dt_undo_t;
 
 dt_undo_t *dt_undo_init(void);
@@ -56,7 +56,10 @@ void dt_undo_do_redo(dt_undo_t *self, uint32_t filter);
 //  removes all items which correspond to filter in the undo/redo lists
 void dt_undo_clear(dt_undo_t *self, uint32_t filter);
 
-void dt_undo_iterate(dt_undo_t *self, uint32_t filter, gpointer user_data, gboolean lock,
+void dt_undo_iterate_internal(dt_undo_t *self, uint32_t filter, gpointer user_data,
+                              void (*apply)(gpointer user_data, dt_undo_type_t type, dt_undo_data_t *item));
+
+void dt_undo_iterate(dt_undo_t *self, uint32_t filter, gpointer user_data,
                      void (*apply)(gpointer user_data, dt_undo_type_t type, dt_undo_data_t *item));
 
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
